@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py session-start" }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py session-end" }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py running" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py running", "timeout": 5 }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py running", "timeout": 5 }] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py failed", "timeout": 5 }] }
+    ],
+    "Notification": [
+      { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py waiting-permission" }] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py await-permission", "timeout": 60 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py review" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py review" }] }
+    ],
+    "StopFailure": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py failed" }] }
+    ],
+    "TaskCreated": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py task-created" }] }
+    ],
+    "TaskCompleted": [
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py task-completed" }] }
+    ]
+  }
+}
