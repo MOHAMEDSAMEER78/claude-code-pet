@@ -191,6 +191,59 @@ def summarize_tool(payload):
     return tool_name, None
 
 
+def _truncate(value, limit=48):
+    value = str(value).strip()
+    if len(value) > limit:
+        value = value[: limit - 3] + "..."
+    return value
+
+
+def humanize_action(tool_name, tool_input):
+    """A short, present-tense, natural-language sentence describing what the
+    agent is doing right now - e.g. "Editing SessionStore.swift" instead of
+    the raw "Edit · SessionStore.swift" ('tool · arg') the bubble showed
+    before. Mirrors the plain-English progress lines Codex's own activity
+    card shows (e.g. "Done. I made a simplified Codex pet from the dragon
+    image, using the...") rather than surfacing tool/arg internals.
+    """
+    if not tool_name:
+        return None
+    ti = tool_input or {}
+
+    if tool_name == "Bash":
+        cmd = ti.get("command")
+        return f"Running `{_truncate(cmd)}`" if cmd else "Running a command"
+    if tool_name in ("Edit", "Write", "MultiEdit"):
+        path = ti.get("file_path")
+        name = os.path.basename(path) if path else None
+        return f"Editing {name}" if name else "Editing a file"
+    if tool_name == "NotebookEdit":
+        path = ti.get("notebook_path")
+        name = os.path.basename(path) if path else None
+        return f"Editing {name}" if name else "Editing a notebook"
+    if tool_name == "Read":
+        path = ti.get("file_path")
+        name = os.path.basename(path) if path else None
+        return f"Reading {name}" if name else "Reading a file"
+    if tool_name == "Grep":
+        pattern = ti.get("pattern")
+        return f'Searching for "{_truncate(pattern, 30)}"' if pattern else "Searching the codebase"
+    if tool_name == "Glob":
+        pattern = ti.get("pattern")
+        return f"Finding files matching {_truncate(pattern, 30)}" if pattern else "Finding files"
+    if tool_name in ("WebFetch", "WebSearch"):
+        target = ti.get("url") or ti.get("query")
+        return f"Looking up {_truncate(target, 40)}" if target else "Searching the web"
+    if tool_name == "TodoWrite":
+        return "Updating the task list"
+    if tool_name == "Task":
+        desc = ti.get("description")
+        return f"Delegating: {_truncate(desc, 40)}" if desc else "Running a subtask"
+    if tool_name.startswith("mcp__"):
+        return f"Using {tool_name.split('__')[-1]}"
+    return f"Using {tool_name}"
+
+
 def await_permission_decision(session_id, session_file, cwd, tool, summary):
     """Write a request file, block polling for the app's response, and print
     the hookSpecificOutput Claude Code expects. Exits 0 in every case -
@@ -293,13 +346,15 @@ def main():
 
     if state == "await-permission":
         tool, summary = summarize_tool(payload)
+        action = humanize_action(tool, payload.get("tool_input"))
+        action = f"Needs permission: {action[0].lower()}{action[1:]}" if action else "Needs your permission to continue"
         # Still surface the waiting-permission pet state immediately so the
         # bubble/animation shows up without waiting on the blocking call below.
         terminal_pid, terminal_app, tty = find_terminal_ancestor(os.getpid())
         claude_pid = find_claude_pid(session_id)
         status = {
             "session_id": session_id, "state": "waiting-permission",
-            "cwd": payload.get("cwd"), "tool": tool, "summary": summary,
+            "cwd": payload.get("cwd"), "tool": tool, "summary": summary, "action": action,
             "ts": time.time(), "terminal_pid": terminal_pid, "terminal_app": terminal_app,
             "tty": tty, "tasks_done": tasks_done, "tasks_total": tasks_total, "title": title,
             "claude_pid": claude_pid,
@@ -324,10 +379,23 @@ def main():
         tool = existing.get("tool")
         summary = existing.get("summary")
         cwd = existing.get("cwd")
+        action = existing.get("action")
     else:
         effective_state = "idle" if state == "session-start" else state
         tool, summary = summarize_tool(payload)
         cwd = payload.get("cwd")
+        action = humanize_action(tool, payload.get("tool_input"))
+        if not action:
+            # No tool call in this event (e.g. UserPromptSubmit, Stop,
+            # PostToolUseFailure) - fall back to a plain-English sentence for
+            # the state itself, matching Codex's "Done. I made a..." style
+            # instead of leaving the bubble blank or showing raw internals.
+            action = {
+                "idle": "Waiting for your next message",
+                "running": "Thinking...",
+                "review": "Done - ready for your review",
+                "failed": "Something went wrong",
+            }.get(effective_state)
 
     terminal_pid, terminal_app, tty = find_terminal_ancestor(os.getpid())
     claude_pid = find_claude_pid(session_id)
@@ -338,6 +406,7 @@ def main():
         "cwd": cwd,
         "tool": tool,
         "summary": summary,
+        "action": action,
         "ts": time.time(),
         "terminal_pid": terminal_pid,
         "terminal_app": terminal_app,

@@ -29,7 +29,7 @@ struct PetSpriteView: View {
                     .resizable()
                     .interpolation(.none)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 96, height: 104)
+                    .frame(width: 116, height: 126)
             }
         }
         .onAppear { startTimer() }

@@ -46,6 +46,7 @@ struct SessionStatus: Codable {
     var cwd: String?
     var tool: String?
     var summary: String?
+    var action: String?
     var ts: TimeInterval
     var terminalPid: Int32?
     var terminalApp: String?
@@ -57,7 +58,7 @@ struct SessionStatus: Codable {
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
-        case state, cwd, tool, summary, ts, tty, title
+        case state, cwd, tool, summary, action, ts, tty, title
         case terminalPid = "terminal_pid"
         case terminalApp = "terminal_app"
         case tasksDone = "tasks_done"

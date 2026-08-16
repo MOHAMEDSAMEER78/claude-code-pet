@@ -12,7 +12,7 @@ final class PetPanel: NSPanel {
     /// down instead of pushing the sprite itself up or down.
     private var topAnchorY: CGFloat
 
-    init(rootView: some View, origin: NSPoint? = nil, size: NSSize = NSSize(width: 190, height: 250)) {
+    init(rootView: some View, origin: NSPoint? = nil, size: NSSize = NSSize(width: 220, height: 270)) {
         topAnchorY = 0
         super.init(
             contentRect: NSRect(origin: .zero, size: size),
@@ -68,7 +68,7 @@ final class PetPanel: NSPanel {
 
     /// Default bottom-right-anchored slot for the Nth panel in a horizontal
     /// row of multi-pet panels (right-to-left, newest closest to the corner).
-    static func slotOrigin(index: Int, panelWidth: CGFloat = 190, margin: CGFloat = 24, gap: CGFloat = 12) -> NSPoint {
+    static func slotOrigin(index: Int, panelWidth: CGFloat = 220, margin: CGFloat = 24, gap: CGFloat = 12) -> NSPoint {
         guard let screen = NSScreen.main else { return NSPoint(x: 0, y: 0) }
         let x = screen.visibleFrame.maxX - panelWidth - margin - CGFloat(index) * (panelWidth + gap)
         let y = screen.visibleFrame.minY + margin

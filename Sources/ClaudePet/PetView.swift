@@ -1,5 +1,90 @@
 import SwiftUI
 
+/// Colors/chrome pulled directly from a screen recording of the real Codex
+/// desktop pet overlay: a solid charcoal card (not a translucent macOS
+/// material), no speech-bubble tail, and a small round status badge that
+/// overlaps the card's top-right corner (spinner while working, green check
+/// when done).
+private enum CodexChrome {
+    static let background = Color(red: 0.11, green: 0.11, blue: 0.13)
+    static let border = Color.white.opacity(0.10)
+    static let primaryText = Color.white
+    static let secondaryText = Color.white.opacity(0.62)
+    static let accent = Color(red: 0.42, green: 0.55, blue: 0.98) // Codex's default-pet blue
+}
+
+/// The real overlay's card has no tail - it just floats near the pet - and
+/// a status badge that overlaps its top-right corner.
+private struct CodexBubbleModifier: ViewModifier {
+    var cornerRadius: CGFloat = 18
+    var maxWidth: CGFloat?
+    var badge: AnyView? = nil
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: maxWidth, alignment: .leading)
+            .background(CodexChrome.background, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(CodexChrome.border, lineWidth: 1)
+            )
+            .overlay(alignment: .topTrailing) {
+                if let badge {
+                    badge
+                        .offset(x: 6, y: -6)
+                }
+            }
+    }
+}
+
+private extension View {
+    func codexBubble(cornerRadius: CGFloat = 18, maxWidth: CGFloat? = nil, badge: AnyView? = nil) -> some View {
+        modifier(CodexBubbleModifier(cornerRadius: cornerRadius, maxWidth: maxWidth, badge: badge))
+    }
+}
+
+/// The small round status indicator seen overlapping the real bubble's
+/// top-right corner: a spinner while a task is running, a green check once
+/// it's done, matching the states the ClaudePet hook already tracks.
+private struct StatusBadge: View {
+    let state: PetState
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(CodexChrome.background)
+            Circle()
+                .strokeBorder(CodexChrome.border, lineWidth: 1)
+            content
+        }
+        .frame(width: 18, height: 18)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .running:
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.6)
+        case .review:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.red)
+        case .waitingPermission:
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(.orange)
+        case .idle:
+            EmptyView()
+        }
+    }
+}
+
 /// Reports the pet content's natural (unclipped) size so the hosting NSPanel
 /// can resize to fit - see PetPanel.fitToContent.
 private struct PetContentSizeKey: PreferenceKey {
@@ -53,6 +138,7 @@ struct PetContentView: View {
 
             if !bubbleText.isEmpty {
                 ActivityCard(
+                    state: state,
                     name: identityName,
                     message: bubbleText,
                     tasksDone: tasksDone,
@@ -71,7 +157,7 @@ struct PetContentView: View {
             }
         }
         .padding(10)
-        .frame(width: 190, alignment: .top)
+        .frame(width: 220, alignment: .top)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(key: PetContentSizeKey.self, value: proxy.size)
@@ -97,6 +183,7 @@ struct PetContentView: View {
 /// list. Replaces a plain status-text bubble with something closer to the
 /// real notification card (name, message, progress badge).
 struct ActivityCard: View {
+    let state: PetState
     let name: String
     let message: String
     let tasksDone: Int?
@@ -104,14 +191,16 @@ struct ActivityCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(name)
-                    .font(.system(size: 12, weight: .bold))
-                    .lineLimit(2)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(CodexChrome.primaryText)
+                    .lineLimit(1)
                 Text(message)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .font(.system(size: 11))
+                    .foregroundStyle(CodexChrome.secondaryText)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 4)
@@ -119,9 +208,8 @@ struct ActivityCard: View {
                 TaskProgressRing(done: done, total: total)
             }
         }
-        .padding(10)
-        .frame(maxWidth: 180, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 10))
+        .codexBubble(maxWidth: 210, badge: AnyView(StatusBadge(state: state)))
     }
 }
 
@@ -137,13 +225,14 @@ struct TaskProgressRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.secondary.opacity(0.25), lineWidth: 3)
+                .stroke(Color.white.opacity(0.15), lineWidth: 3)
             Circle()
                 .trim(from: 0, to: fraction)
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .stroke(CodexChrome.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(done)/\(total)")
                 .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(CodexChrome.primaryText)
         }
         .frame(width: 30, height: 30)
     }
@@ -157,30 +246,50 @@ struct PermissionBubble: View {
     let onDecision: (Bool) -> Void
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             Text(request.tool ?? "Permission needed")
                 .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(CodexChrome.primaryText)
                 .lineLimit(1)
             if let summary = request.summary, !summary.isEmpty {
                 Text(summary)
                     .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(CodexChrome.secondaryText)
                     .lineLimit(2)
                     .truncationMode(.middle)
             }
             HStack(spacing: 8) {
-                Button("Deny") { onDecision(false) }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                Button("Allow") { onDecision(true) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12)) {
+                    onDecision(false)
+                }
+                CodexPillButton(title: "Allow", tint: .black, fill: CodexChrome.accent) {
+                    onDecision(true)
+                }
             }
-            .controlSize(.small)
         }
-        .padding(8)
-        .frame(maxWidth: 160)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .padding(10)
+        .codexBubble(cornerRadius: 16, maxWidth: 190)
+    }
+}
+
+/// A flat, pill-shaped button matching Codex's real button chrome (solid
+/// fill, no native macOS bezel) instead of AppKit's default bordered styles.
+private struct CodexPillButton: View {
+    let title: String
+    let tint: Color
+    let fill: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(fill, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

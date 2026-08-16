@@ -41,17 +41,18 @@ struct ActivityTrayRow: View {
                 HStack(spacing: 6) {
                     Text(displayTitle)
                         .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Text(session.state.label)
                         .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.6))
                         .fixedSize()
                 }
                 if !cwdName.isEmpty {
                     Text(cwdName)
                         .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.6))
                         .lineLimit(2)
                         .truncationMode(.middle)
                 }
@@ -66,7 +67,7 @@ struct ActivityTrayRow: View {
             killButton
         }
         .padding(8)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// Tap once to arm ("Sure?"), tap again within 3s to confirm - avoids a
@@ -107,13 +108,13 @@ struct ActivityTrayView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Active Sessions")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
                 .padding(.horizontal, 4)
 
             if store.sessions.isEmpty {
                 Text("No active Claude Code sessions")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.6))
                     .padding(8)
             } else {
                 ScrollView {
@@ -133,6 +134,10 @@ struct ActivityTrayView: View {
         }
         .padding(10)
         .frame(width: 260, alignment: .top)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(Color(red: 0.09, green: 0.09, blue: 0.10), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 }

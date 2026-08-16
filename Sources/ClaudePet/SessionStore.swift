@@ -76,7 +76,13 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// Prefers the hook's natural-language `action` sentence (e.g. "Editing
+    /// SessionStore.swift", "Done - ready for your review") - matching the
+    /// plain-English progress lines Codex's own activity card shows - over
+    /// the raw "cwd · tool · arg" join, which only remains as a fallback for
+    /// session files written before the `action` field existed.
     private func bubble(for status: SessionStatus, state: PetState) -> String {
+        if let action = status.action, !action.isEmpty { return action }
         let cwdName = status.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
         var parts = [String]()
         if !cwdName.isEmpty { parts.append(cwdName) }
