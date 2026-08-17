@@ -86,16 +86,51 @@ enum TerminalFocuser {
     /// `code -r <folder>` / `cursor -r <folder>` reuses (or opens) the window
     /// for that workspace - not the exact integrated-terminal panel, but a
     /// real improvement over "whichever VS Code window happened to be frontmost."
+    ///
+    /// ClaudePet.app is launched by LaunchServices (Finder/`open`), not a
+    /// shell, so it inherits launchd's minimal PATH
+    /// (/usr/bin:/bin:/usr/sbin:/sbin) - it never sees /usr/local/bin or
+    /// /opt/homebrew/bin, which is where these CLI shims actually live, so
+    /// `env <command>` silently fails to find them. Search the well-known
+    /// install locations directly instead of trusting PATH.
     private static func focusEditorWindow(command: String, cwd: String) -> Bool {
+        guard let binary = resolveEditorBinary(command) else { return false }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [command, "-r", cwd]
+        process.executableURL = URL(fileURLWithPath: binary)
+        process.arguments = ["-r", cwd]
         do {
             try process.run()
             process.waitUntilExit()
             return process.terminationStatus == 0
         } catch {
             return false
+        }
+    }
+
+    private static func resolveEditorBinary(_ command: String) -> String? {
+        let candidates = [
+            "/usr/local/bin/\(command)",
+            "/opt/homebrew/bin/\(command)",
+            NSHomeDirectory() + "/.local/bin/\(command)",
+        ]
+        if let found = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return found
+        }
+        // Fall back to whatever the invoking shell's PATH resolves, in case
+        // it's installed somewhere nonstandard.
+        let which = Process()
+        which.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        which.arguments = [command]
+        let pipe = Pipe()
+        which.standardOutput = pipe
+        do {
+            try which.run()
+            which.waitUntilExit()
+            let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (output?.isEmpty == false) ? output : nil
+        } catch {
+            return nil
         }
     }
 

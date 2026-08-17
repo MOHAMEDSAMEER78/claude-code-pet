@@ -66,6 +66,44 @@ final class PetPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    /// Fades and slides the panel in from just below its resting position -
+    /// used for "Wake Pet" and opening the activity tray so appearing reads
+    /// as a deliberate pop-in instead of an instant snap.
+    func animateIn(completion: (() -> Void)? = nil) {
+        let restingFrame = frame
+        var startFrame = restingFrame
+        startFrame.origin.y -= 10
+        alphaValue = 0
+        setFrame(startFrame, display: false)
+        orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            self.animator().alphaValue = 1
+            self.animator().setFrame(restingFrame, display: true)
+        }, completionHandler: completion)
+    }
+
+    /// The inverse of animateIn: fades and slides down before actually
+    /// hiding the window - used for "Tuck Away Pet" and closing the tray.
+    func animateOut(completion: (() -> Void)? = nil) {
+        let restingFrame = frame
+        var endFrame = restingFrame
+        endFrame.origin.y -= 10
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            self.animator().alphaValue = 0
+            self.animator().setFrame(endFrame, display: true)
+        }, completionHandler: { [weak self] in
+            guard let self else { completion?(); return }
+            self.orderOut(nil)
+            self.alphaValue = 1
+            self.setFrame(restingFrame, display: false)
+            completion?()
+        })
+    }
+
     /// Default bottom-right-anchored slot for the Nth panel in a horizontal
     /// row of multi-pet panels (right-to-left, newest closest to the corner).
     static func slotOrigin(index: Int, panelWidth: CGFloat = 220, margin: CGFloat = 24, gap: CGFloat = 12) -> NSPoint {

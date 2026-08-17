@@ -293,7 +293,7 @@ struct PermissionBubble: View {
 
 /// A flat, pill-shaped button matching Codex's real button chrome (solid
 /// fill, no native macOS bezel) instead of AppKit's default bordered styles.
-private struct CodexPillButton: View {
+struct CodexPillButton: View {
     let title: String
     let tint: Color
     let fill: Color

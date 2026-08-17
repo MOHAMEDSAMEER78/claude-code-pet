@@ -108,9 +108,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             guard let panel else { return }
             if panel.isVisible {
-                panel.orderOut(nil)
+                panel.animateOut()
             } else {
-                panel.orderFrontRegardless()
+                panel.animateIn()
             }
         }
         if wasVisible == false { animator.triggerWave() } // waking up: greet
@@ -136,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let tray = PetPanel(
                 rootView: ActivityTrayView(
                     store: store,
+                    permissions: permissions,
                     identityFor: { [weak self] sessionId in
                         guard let self else { return "Session" }
                         let pool = PetIdentity.namePool(customPetDirs: self.library.availableDirs)
@@ -161,12 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let tray = trayPanel else { return }
         let origin = NSPoint(x: panel.frame.origin.x + panel.frame.width - 260, y: panel.frame.maxY + 8)
         tray.setFrameOrigin(origin)
-        tray.orderFrontRegardless()
-        tray.makeKey()
+        tray.animateIn { tray.makeKey() }
     }
 
     private func hideTray() {
-        trayPanel?.orderOut(nil)
+        trayPanel?.animateOut()
     }
 
     @objc private func toggleWander() {
