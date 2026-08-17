@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import ClaudePetCore
 
 /// Per-session view model backing one multi-pet-mode panel. Also owns the
 /// "click to focus terminal" action, which uses TerminalFocuser to select

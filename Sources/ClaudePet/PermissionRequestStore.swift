@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import ClaudePetCore
 
 /// Watches ~/.claude/pet/requests/*.json for pending permission decisions
 /// and writes ~/.claude/pet/responses/<id>.json when the user answers from
@@ -7,6 +8,12 @@ import Combine
 /// the response file and relays the decision back to Claude Code.
 final class PermissionRequestStore: ObservableObject {
     @Published private(set) var requestsBySession: [String: PermissionRequest] = [:]
+
+    /// Fires every time the user answers a bubble/tray Allow/Deny, for
+    /// SessionHistoryStore's approve/deny counters - kept as a side-channel
+    /// event rather than baked into `respond` so the store doesn't need to
+    /// know history-tracking exists.
+    let decisions = PassthroughSubject<(sessionId: String, allow: Bool), Never>()
 
     private let requestsDir: URL
     private let responsesDir: URL
@@ -75,5 +82,6 @@ final class PermissionRequestStore: ObservableObject {
         // hook process to notice and clean up.
         try? FileManager.default.removeItem(at: requestsDir.appendingPathComponent("\(request.requestId).json"))
         requestsBySession.removeValue(forKey: request.sessionId)
+        decisions.send((sessionId: request.sessionId, allow: allow))
     }
 }

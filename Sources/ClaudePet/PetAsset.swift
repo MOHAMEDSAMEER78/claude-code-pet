@@ -1,4 +1,5 @@
 import AppKit
+import ClaudePetCore
 
 /// Codex-compatible pet: a `pet.json` manifest + one spritesheet PNG.
 /// The real Codex manifest (per community hatch-pet generators) only has

@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import ClaudePetCore
 
 /// Manages one floating PetPanel per active Claude Code session, adding and
 /// removing panels as sessions come and go (SessionStore already handles

@@ -1,6 +1,6 @@
 import Foundation
 
-enum PetState: String, Codable {
+public enum PetState: String, Codable {
     case idle
     case running
     case waitingPermission = "waiting-permission"
@@ -9,7 +9,7 @@ enum PetState: String, Codable {
 
     /// Higher = more urgent; used to pick which session's state "wins" when
     /// several sessions are active at once.
-    var priority: Int {
+    public var priority: Int {
         switch self {
         case .waitingPermission: return 4
         case .failed: return 3
@@ -19,7 +19,7 @@ enum PetState: String, Codable {
         }
     }
 
-    var emoji: String {
+    public var emoji: String {
         switch self {
         case .idle: return "😴"
         case .running: return "🏃"
@@ -29,7 +29,7 @@ enum PetState: String, Codable {
         }
     }
 
-    var label: String {
+    public var label: String {
         switch self {
         case .idle: return "Idle"
         case .running: return "Working"
@@ -38,23 +38,35 @@ enum PetState: String, Codable {
         case .failed: return "Failed"
         }
     }
+
+    /// SF Symbol shown in the menu bar for this state - lets the status item
+    /// itself communicate at a glance without opening the pet panel.
+    public var menuBarSymbol: String {
+        switch self {
+        case .idle: return "pawprint.fill"
+        case .running: return "figure.run"
+        case .waitingPermission: return "hand.raised.fill"
+        case .review: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
 }
 
-struct SessionStatus: Codable {
-    var sessionId: String
-    var state: PetState
-    var cwd: String?
-    var tool: String?
-    var summary: String?
-    var action: String?
-    var ts: TimeInterval
-    var terminalPid: Int32?
-    var terminalApp: String?
-    var tty: String?
-    var tasksDone: Int?
-    var tasksTotal: Int?
-    var title: String?
-    var claudePid: Int32?
+public struct SessionStatus: Codable {
+    public var sessionId: String
+    public var state: PetState
+    public var cwd: String?
+    public var tool: String?
+    public var summary: String?
+    public var action: String?
+    public var ts: TimeInterval
+    public var terminalPid: Int32?
+    public var terminalApp: String?
+    public var tty: String?
+    public var tasksDone: Int?
+    public var tasksTotal: Int?
+    public var title: String?
+    public var claudePid: Int32?
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"

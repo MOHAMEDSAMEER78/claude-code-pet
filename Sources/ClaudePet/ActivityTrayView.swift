@@ -1,4 +1,5 @@
 import SwiftUI
+import ClaudePetCore
 
 /// One row in the Activity Tray: a session's chat summary, status, and
 /// current activity, selectable to jump to that session's terminal -

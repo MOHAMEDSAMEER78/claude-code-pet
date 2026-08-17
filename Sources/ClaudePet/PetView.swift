@@ -1,4 +1,5 @@
 import SwiftUI
+import ClaudePetCore
 
 /// Colors/chrome pulled directly from a screen recording of the real Codex
 /// desktop pet overlay: a solid charcoal card (not a translucent macOS

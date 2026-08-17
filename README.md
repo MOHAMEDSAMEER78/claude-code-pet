@@ -15,7 +15,14 @@ There's no first-party API for this — Claude Code is a CLI. The bridge is enti
 - **Multi-Session Pets** (optional mode): instead of one aggregate pet, show one floating pet per active session, laid out in a row.
 - **Idle wandering**: when idle, the pet occasionally strolls to a new spot along the screen's bottom edge and settles — like real Codex pets "finding a spot to sleep."
 - **Wave on wake, jump on click**, and respects **Reduce Motion** (freezes on a still frame instead of animating).
-- Global hotkey **⌘⇧P** to show/hide the pet; a menu-bar icon for everything else.
+- Global hotkey **⌘⇧P** to show/hide the pet; **⌘⇧K** opens a Spotlight-style **command palette** to jump straight to any active session by project name.
+- **Native notifications**: if a permission decision needs you and the app isn't frontmost, you get a real macOS notification instead of a bubble no one saw. State-changing sound cues (review/failed/waiting-permission) are available too, off by default.
+- **State-aware menu-bar icon**: the status item itself changes glyph and tint (idle/working/waiting/review/failed) — no need to open the panel just to check.
+- **Hook Setup & Diagnostics**: a one-click installer that wires the hooks into `~/.claude/settings.json` for you (backing it up first) and points them at a fixed, checkout-independent script location, plus a health check for "the pet just isn't reacting."
+- **Preferences window**: wander, sounds, notifications, and Launch at Login, all in one place.
+- **Pet Gallery**: browse and preview every installed pet before applying it, instead of cycling blind.
+- **Local session stats**: sessions today/this week, tasks completed, permission approval rate — local-only, never leaves the Mac.
+- **Launch at Login**, via `SMAppService`.
 
 ## Requirements
 
@@ -113,13 +120,19 @@ Use the menu bar icon → **Next Pet** / **Use Emoji Pet** / **Reload Pets** / *
 - No first-party integration — this breaks if Anthropic changes hook payload shapes or event names.
 - `Notification`/permission-hook latency can be a couple of seconds in some Claude Code versions.
 - Click-to-focus and kill-session both rely on process-tree/command-line heuristics to find the right terminal/process; they degrade gracefully (button does nothing / is disabled) rather than acting on a guess when the heuristic can't resolve.
-- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh`, fine for running on your own Mac, not for handing to someone else without re-signing.
-- No launch-at-login yet (planned: `SMAppService`).
+- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh`, fine for running on your own Mac, not for handing to someone else without re-signing. No auto-update mechanism either; a new build means re-running `build_app.sh`.
+- Session stats deliberately don't show "time worked" — the hook payloads give a last-write timestamp per session, not a trustworthy session-start time, so a duration would mean making a number up.
+
+## Testing
+
+`Sources/ClaudePetCore` holds the pure session-state logic (priority ordering, review decay, staleness, bubble text) with no AppKit/file-I/O dependencies, unit tested in `Tests/ClaudePetCoreTests` via `swift test`. Note: running the suite needs a full Xcode install, not just Command Line Tools — CLT alone doesn't ship a working XCTest/Testing runtime, independent of anything in this repo.
 
 ## Project layout
 
 ```
 Sources/ClaudePet/       Swift app (AppKit NSPanel + SwiftUI content)
+Sources/ClaudePetCore/   Pure session-state logic, unit tested, no AppKit dependency
+Tests/ClaudePetCoreTests/  swift test suite for ClaudePetCore
 hooks/pet-hook.py        The hook↔app bridge script (stdlib-only Python)
 hooks/settings-snippet.json   Hook config to merge into ~/.claude/settings.json
 build_app.sh             Builds Sources/ into ClaudePet.app
