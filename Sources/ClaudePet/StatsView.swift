@@ -13,12 +13,6 @@ struct StatsView: View {
 
     @State private var activeSpendUSD: Double?
 
-    private var approvalRate: String {
-        let total = stats.permissionsApproved + stats.permissionsDenied
-        guard total > 0 else { return "—" }
-        return "\(Int(100 * Double(stats.permissionsApproved) / Double(total)))%"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Session Stats")
@@ -31,7 +25,6 @@ struct StatsView: View {
                 stat("Sessions today", "\(stats.sessionsToday)")
                 stat("Sessions this week", "\(stats.sessionsThisWeek)")
                 stat("Tasks completed (7d)", "\(stats.tasksCompletedThisWeek)")
-                stat("Permission approval rate", approvalRate)
             }
 
             if !activeSessionIds.isEmpty {

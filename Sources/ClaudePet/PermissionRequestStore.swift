@@ -2,49 +2,33 @@ import Foundation
 import Combine
 import ClaudePetCore
 
-/// Mirrors the three outcomes pet-hook.py's await-permission actually
-/// understands - not just allow/deny. "escalate" hands the decision to
-/// Claude Code's own terminal prompt instead of answering from the overlay,
-/// same as what already happens on a silent timeout, but said explicitly.
-enum PermissionDecision: String {
-    case allow, deny, escalate
-}
-
-/// Watches ~/.claude/pet/requests/*.json for pending permission decisions
-/// and writes ~/.claude/pet/responses/<id>.json when the user answers from
-/// the pet's permission overlay. The blocked pet-hook.py process polls for
-/// the response file and relays the decision back to Claude Code.
+/// Watches ~/.claude/pet/requests/*.json for pending permission requests -
+/// purely to know when to fire a native notification (see
+/// AppDelegate.wireAlerts). ClaudePet is notification-only for permissions:
+/// most tool calls are already auto-approved, an actual PermissionRequest is
+/// rare, and there's no in-app Allow/Deny - pet-hook.py's await-permission
+/// returns immediately and lets Claude Code's own terminal prompt handle the
+/// decision.
 final class PermissionRequestStore: ObservableObject {
     @Published private(set) var requestsBySession: [String: PermissionRequest] = [:]
 
-    /// Fires every time the user answers a request, for
-    /// SessionHistoryStore's approve/deny counters - kept as a side-channel
-    /// event rather than baked into `respond` so the store doesn't need to
-    /// know history-tracking exists.
-    let decisions = PassthroughSubject<(sessionId: String, decision: PermissionDecision), Never>()
-
     private let requestsDir: URL
-    private let responsesDir: URL
     private var dirWatcher: DispatchSourceFileSystemObject?
     private var pollTimer: Timer?
     /// Push path: pet-hook.py pings this the instant it writes a request
-    /// file, so a new permission bubble usually shows immediately rather
-    /// than waiting on FSEvent or the poll-timer fallback below.
+    /// file, so the notification usually fires immediately rather than
+    /// waiting on FSEvent or the poll-timer fallback below.
     private let notifier = IPCNotifier(socketName: "notify-requests.sock")
 
-    /// Requests older than this are assumed to have already timed out on
-    /// the hook side; stop showing their bubble. Kept just a bit above
-    /// pet-hook.py's own AWAIT_PERMISSION_TIMEOUT_SECONDS (45s) - the hook
-    /// normally removes its own request file on timeout, this is only a
-    /// backstop for the rare case it didn't get to (e.g. force-killed).
+    /// Requests older than this are dropped - pet-hook.py no longer removes
+    /// its own request file (nothing waits on a response to clean up after
+    /// anymore), so this is what actually clears them, not just a backstop.
     private static let staleSeconds: TimeInterval = 60
 
     init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         requestsDir = home.appendingPathComponent(".claude/pet/requests", isDirectory: true)
-        responsesDir = home.appendingPathComponent(".claude/pet/responses", isDirectory: true)
         try? FileManager.default.createDirectory(at: requestsDir, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: responsesDir, withIntermediateDirectories: true)
         startWatching()
         refresh()
     }
@@ -65,9 +49,8 @@ final class PermissionRequestStore: ObservableObject {
         notifier.start { [weak self] in self?.refresh() }
 
         // Last-resort fallback (missed socket ping + missed FSEvent) and
-        // what actually drives clearing a stale/timed-out bubble by
-        // wall-clock time alone. Relaxed from 2s now that the socket ping
-        // is the primary push path for "a new request appeared."
+        // what actually drives clearing an expired request by wall-clock
+        // time alone.
         pollTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.refresh()
         }
@@ -90,16 +73,5 @@ final class PermissionRequestStore: ObservableObject {
             bySession[request.sessionId] = request
         }
         requestsBySession = bySession
-    }
-
-    func respond(_ request: PermissionRequest, decision: PermissionDecision) {
-        let response: [String: Any] = ["decision": decision.rawValue]
-        guard let data = try? JSONSerialization.data(withJSONObject: response) else { return }
-        try? data.write(to: responsesDir.appendingPathComponent("\(request.requestId).json"))
-        // Clear immediately so the bubble disappears without waiting on the
-        // hook process to notice and clean up.
-        try? FileManager.default.removeItem(at: requestsDir.appendingPathComponent("\(request.requestId).json"))
-        requestsBySession.removeValue(forKey: request.sessionId)
-        decisions.send((sessionId: request.sessionId, decision: decision))
     }
 }

@@ -22,7 +22,7 @@
       { "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py waiting-permission" }] }
     ],
     "PermissionRequest": [
-      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py await-permission", "timeout": 60 }] }
+      { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py await-permission", "timeout": 5 }] }
     ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "~/claude-code-pet/hooks/pet-hook.py review" }] }

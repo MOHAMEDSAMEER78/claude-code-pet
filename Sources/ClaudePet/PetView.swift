@@ -124,8 +124,6 @@ struct PetContentView: View {
     var tasksDone: Int? = nil
     var tasksTotal: Int? = nil
     var onTap: (() -> Void)?
-    var pendingRequest: PermissionRequest?
-    var onDecision: ((PermissionDecision) -> Void)?
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     @State private var bobbing = false
@@ -170,10 +168,6 @@ struct PetContentView: View {
                 Text(footnote)
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
-            }
-
-            if let request = pendingRequest, let onDecision {
-                PermissionOverlayCard(request: request, onDecision: onDecision)
             }
         }
         .padding(10)
@@ -258,41 +252,15 @@ struct TaskProgressRing: View {
     }
 }
 
-/// A flat, pill-shaped button matching Codex's real button chrome (solid
-/// fill, no native macOS bezel) instead of AppKit's default bordered styles.
-struct CodexPillButton: View {
-    let title: String
-    let tint: Color
-    let fill: Color
-    var fontSize: CGFloat = 10
-    var expand: Bool = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(maxWidth: expand ? .infinity : nil)
-                .padding(.horizontal, 12)
-                .padding(.vertical, expand ? 9 : 5)
-                .background(fill, in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// Single-pet mode: reflects the highest-priority state across all sessions.
 struct PetView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var library: PetLibrary
-    @ObservedObject var permissions: PermissionRequestStore
     @ObservedObject var animator: PetAnimator
     var onOpenTray: (() -> Void)? = nil
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     var body: some View {
-        let request = permissions.requestsBySession.values.min { $0.ts < $1.ts }
         PetContentView(
             state: store.aggregate,
             identityName: store.title ?? library.current?.name ?? "Claude",
@@ -306,10 +274,6 @@ struct PetView: View {
                 animator.triggerJump()
                 onOpenTray?()
             },
-            pendingRequest: request,
-            onDecision: { decision in
-                if let request { permissions.respond(request, decision: decision) }
-            },
             onSizeChange: onSizeChange
         )
     }
@@ -319,11 +283,9 @@ struct PetView: View {
 struct SinglePetView: View {
     @ObservedObject var viewModel: SessionPetViewModel
     @ObservedObject var library: PetLibrary
-    @ObservedObject var permissions: PermissionRequestStore
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     var body: some View {
-        let request = permissions.requestsBySession[viewModel.sessionId]
         PetContentView(
             state: viewModel.state,
             identityName: viewModel.title ?? viewModel.identityName,
@@ -336,10 +298,6 @@ struct SinglePetView: View {
             onTap: {
                 viewModel.triggerJump()
                 viewModel.focusTerminal()
-            },
-            pendingRequest: request,
-            onDecision: { decision in
-                if let request { permissions.respond(request, decision: decision) }
             },
             onSizeChange: onSizeChange
         )

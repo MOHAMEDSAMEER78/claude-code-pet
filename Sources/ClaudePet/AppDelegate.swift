@@ -15,8 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let animator = PetAnimator()
     private let settings = AppSettings.shared
     private let notifications = NotificationManager()
-    private lazy var historyStore = SessionHistoryStore(sessionStore: store, permissions: permissions)
-    private lazy var multiPetController = MultiPetController(store: store, library: library, permissions: permissions)
+    private lazy var historyStore = SessionHistoryStore(sessionStore: store)
+    private lazy var multiPetController = MultiPetController(store: store, library: library)
     private var toggleMenuItem: NSMenuItem?
     private var multiSessionMenuItem: NSMenuItem?
     private var wanderMenuItem: NSMenuItem?
@@ -42,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         var createdPanel: PetPanel?
         let panel = PetPanel(rootView: PetView(
-            store: store, library: library, permissions: permissions, animator: animator,
+            store: store, library: library, animator: animator,
             onOpenTray: { [weak self] in self?.toggleTray() },
             onSizeChange: { size in createdPanel?.fitToContent(size) }
         ))
@@ -64,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         notifications.requestAuthorization()
-        _ = historyStore // start listening for session-end/decision events immediately
+        _ = historyStore // start listening for session-end events immediately
         wireAlerts()
         maybeOfferHookSetupOnFirstRun()
     }
@@ -97,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 for (_, request) in requests where !seenRequestIds.contains(request.requestId) {
                     seenRequestIds.insert(request.requestId)
-                    self.notifications.notifyPermissionNeeded(request: request, appIsActive: self.isPetVisible)
+                    self.notifications.notifyPermissionNeeded(request: request)
                 }
                 seenRequestIds = seenRequestIds.intersection(requests.values.map(\.requestId))
             }
@@ -231,7 +231,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let tray = PetPanel(
                 rootView: ActivityTrayView(
                     store: store,
-                    permissions: permissions,
                     identityFor: { [weak self] sessionId in
                         guard let self else { return "Session" }
                         let pool = PetIdentity.namePool(customPetDirs: self.library.availableDirs)

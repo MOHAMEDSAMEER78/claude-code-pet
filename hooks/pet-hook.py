@@ -15,12 +15,11 @@ current turn's plan, not a running total across the whole session.
 
 `await-permission` is special: it's meant for the PermissionRequest hook,
 which only fires when Claude Code actually needs a decision (not on every
-tool call). It blocks, polling for the user's Allow/Deny click on the pet's
-bubble, and relays the decision back via hookSpecificOutput so the CLI can
-continue without its own terminal prompt. On timeout or no PID-tracked
-response, it exits quietly so Claude Code falls back to its normal prompt
-- this hook can never make an unintended decision on your behalf, only
-either defer to your bubble click or defer to the normal CLI flow.
+tool call, and rarely at all under defaultMode "auto"). It surfaces the
+request (pet's waiting pose + a native notification) and returns
+immediately with no opinion, so Claude Code's own terminal prompt appears
+with no artificial delay - ClaudePet is notification-only for permissions,
+it never decides on your behalf.
 
 Reads the hook's JSON payload from stdin, extracts session_id/cwd/tool
 info, and writes/removes ~/.claude/pet/sessions/<session_id>.json for the
@@ -39,7 +38,6 @@ import uuid
 
 SESSIONS_DIR = os.path.expanduser("~/.claude/pet/sessions")
 REQUESTS_DIR = os.path.expanduser("~/.claude/pet/requests")
-RESPONSES_DIR = os.path.expanduser("~/.claude/pet/responses")
 
 # Datagram (connectionless) Unix sockets the app listens on, one per
 # directory it watches - pinged right after a write/removal in that
@@ -64,17 +62,6 @@ def notify(socket_path):
             sock.sendto(b"changed", socket_path)
     except OSError:
         pass
-
-# How long to block waiting for an Allow/Deny click before giving up and
-# falling back to Claude Code's normal permission prompt. Keep comfortably
-# under the "timeout" configured for this hook in settings.json. Kept short
-# (not the full hook timeout) because if the user answers Claude Code's own
-# terminal prompt instead of the pet's bubble, this process has no way to
-# detect that directly - the shorter this is, the sooner the pet's stuck
-# "waiting for permission" pose clears itself instead of sitting there for
-# minutes after the decision was actually already made elsewhere.
-AWAIT_PERMISSION_TIMEOUT_SECONDS = 45
-POLL_INTERVAL_SECONDS = 0.15
 
 # GUI apps we recognize as "the terminal" when walking up the process tree.
 # This is a best-effort heuristic (see gmr/claude-status precedent) - good
@@ -306,21 +293,19 @@ def humanize_action(tool_name, tool_input):
     return f"Using {tool_name}"
 
 
-def await_permission_decision(session_id, session_file, cwd, tool, summary):
-    """Write a request file, block polling for the app's response, and print
-    the hookSpecificOutput Claude Code expects. Exits 0 in every case -
-    worst case (timeout, bad response, no app running) is silent fallback
-    to the normal CLI permission prompt, never an unreviewed auto-allow.
+def notify_permission_needed(session_id, cwd, tool, summary):
+    """Write a request file and ping the app, then return immediately -
+    no blocking, no polling for a decision. ClaudePet is notification-only
+    for permissions: most tool calls are already auto-approved (defaultMode
+    auto), so an actual PermissionRequest is rare, and when it happens the
+    right answer is to surface it (native notification + the pet's waiting
+    pose) and let Claude Code show its own terminal prompt immediately - not
+    add an artificial delay waiting on an in-app decision nobody asked for.
 
-    On timeout (most commonly: the user answered Claude Code's own terminal
-    prompt instead of the pet's bubble), the session file gets explicitly
-    reset off "waiting-permission" - otherwise the pet would keep showing
-    its waiting pose/bubble indefinitely, since nothing else touches this
-    session's state until whatever hook happens to fire next.
+    Prints no hookSpecificOutput, which Claude Code treats exactly like a
+    hook that had no opinion: the normal terminal prompt appears right away.
     """
     os.makedirs(REQUESTS_DIR, exist_ok=True)
-    os.makedirs(RESPONSES_DIR, exist_ok=True)
-
     request_id = str(uuid.uuid4())
     request = {
         "request_id": request_id,
@@ -330,73 +315,8 @@ def await_permission_decision(session_id, session_file, cwd, tool, summary):
         "summary": summary,
         "ts": time.time(),
     }
-    request_path = os.path.join(REQUESTS_DIR, f"{request_id}.json")
-    atomic_write_json(request_path, request)
+    atomic_write_json(os.path.join(REQUESTS_DIR, f"{request_id}.json"), request)
     notify(REQUESTS_NOTIFY_SOCKET)
-
-    response_path = os.path.join(RESPONSES_DIR, f"{request_id}.json")
-    deadline = time.time() + AWAIT_PERMISSION_TIMEOUT_SECONDS
-    decision = None
-    while time.time() < deadline:
-        if os.path.exists(response_path):
-            try:
-                with open(response_path) as f:
-                    decision = json.load(f).get("decision")
-            except Exception:
-                decision = None
-            try:
-                os.remove(response_path)
-            except FileNotFoundError:
-                pass
-            break
-        time.sleep(POLL_INTERVAL_SECONDS)
-
-    try:
-        os.remove(request_path)
-    except FileNotFoundError:
-        pass
-
-    if decision not in ("allow", "deny", "escalate"):
-        # Timed out or unreadable - fall back to Claude Code's normal prompt,
-        # and clear our own "waiting-permission" state so the pet doesn't
-        # keep showing that pose/bubble after the decision was made outside
-        # the app (e.g. answered directly in the terminal).
-        existing = load_existing_status(session_file)
-        if existing.get("state") == "waiting-permission":
-            existing["state"] = "running"
-            existing["ts"] = time.time()
-            atomic_write_json(session_file, existing)
-            notify(SESSIONS_NOTIFY_SOCKET)
-        return
-
-    if decision == "escalate":
-        # User explicitly chose "Ask in Terminal" rather than deciding from
-        # the overlay - same net effect as a timeout (Claude Code shows its
-        # own prompt), but said out loud via permissionDecision rather than
-        # inferred from silence, and clears the pet's waiting pose right
-        # away instead of waiting the rest of the timeout window.
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "PermissionRequest",
-                "permissionDecision": "escalate",
-                "permissionDecisionReason": "Chose to decide in the terminal (ClaudePet overlay)",
-            }
-        }))
-        existing = load_existing_status(session_file)
-        if existing.get("state") == "waiting-permission":
-            existing["state"] = "running"
-            existing["ts"] = time.time()
-            atomic_write_json(session_file, existing)
-            notify(SESSIONS_NOTIFY_SOCKET)
-        return
-
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PermissionRequest",
-            "permissionDecision": decision,
-            "permissionDecisionReason": "Decided via ClaudePet overlay",
-        }
-    }))
 
 
 def main():
@@ -428,8 +348,6 @@ def main():
         tool, summary = summarize_tool(payload)
         action = humanize_action(tool, payload.get("tool_input"))
         action = f"Needs permission: {action[0].lower()}{action[1:]}" if action else "Needs your permission to continue"
-        # Still surface the waiting-permission pet state immediately so the
-        # bubble/animation shows up without waiting on the blocking call below.
         terminal_pid, terminal_app, tty, claude_pid = resolve_process_info(existing, session_id, state)
         status = {
             "session_id": session_id, "state": "waiting-permission",
@@ -441,7 +359,7 @@ def main():
         atomic_write_json(session_file, status)
         notify(SESSIONS_NOTIFY_SOCKET)
 
-        await_permission_decision(session_id, session_file, payload.get("cwd"), tool, summary)
+        notify_permission_needed(session_id, payload.get("cwd"), tool, summary)
         return
 
     if state == "task-created":

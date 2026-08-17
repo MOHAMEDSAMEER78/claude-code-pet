@@ -2,12 +2,11 @@ import Foundation
 import Combine
 import ClaudePetCore
 
-/// A local-only, append-only log of finished sessions, plus running
-/// approve/deny counters. Previously a session's entire record vanished the
-/// moment it ended (its status file just gets deleted) - this is the
-/// smallest possible step toward "what did I actually do today," without
-/// inventing data (like elapsed time) the hook payloads don't actually give
-/// us a trustworthy way to compute.
+/// A local-only, append-only log of finished sessions. Previously a
+/// session's entire record vanished the moment it ended (its status file
+/// just gets deleted) - this is the smallest possible step toward "what did
+/// I actually do today," without inventing data (like elapsed time) the
+/// hook payloads don't actually give us a trustworthy way to compute.
 final class SessionHistoryStore: ObservableObject {
     struct Entry: Codable {
         var ts: TimeInterval
@@ -23,38 +22,18 @@ final class SessionHistoryStore: ObservableObject {
         var sessionsToday: Int
         var sessionsThisWeek: Int
         var tasksCompletedThisWeek: Int
-        var permissionsApproved: Int
-        var permissionsDenied: Int
     }
 
     private let fileURL: URL
     private var cancellables: Set<AnyCancellable> = []
 
-    private static let approvedKey = "permissionApprovedCount"
-    private static let deniedKey = "permissionDeniedCount"
-
-    init(sessionStore: SessionStore, permissions: PermissionRequestStore) {
+    init(sessionStore: SessionStore) {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/pet", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("history.jsonl")
 
         sessionStore.sessionEnded
             .sink { [weak self] session in self?.record(session) }
-            .store(in: &cancellables)
-
-        permissions.decisions
-            .sink { event in
-                // "escalate" (handed to the terminal prompt instead) counts
-                // toward neither - it isn't a decision this app made.
-                let key: String?
-                switch event.decision {
-                case .allow: key = Self.approvedKey
-                case .deny: key = Self.deniedKey
-                case .escalate: key = nil
-                }
-                guard let key else { return }
-                UserDefaults.standard.set(UserDefaults.standard.integer(forKey: key) + 1, forKey: key)
-            }
             .store(in: &cancellables)
     }
 
@@ -90,9 +69,7 @@ final class SessionHistoryStore: ObservableObject {
         return Stats(
             sessionsToday: today.count,
             sessionsThisWeek: week.count,
-            tasksCompletedThisWeek: week.reduce(0) { $0 + $1.tasksCompleted },
-            permissionsApproved: UserDefaults.standard.integer(forKey: Self.approvedKey),
-            permissionsDenied: UserDefaults.standard.integer(forKey: Self.deniedKey)
+            tasksCompletedThisWeek: week.reduce(0) { $0 + $1.tasksCompleted }
         )
     }
 

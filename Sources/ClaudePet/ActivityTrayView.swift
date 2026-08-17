@@ -11,12 +11,6 @@ struct ActivityTrayRow: View {
     let fallbackName: String
     let onSelect: () -> Void
     let onKill: () -> Void
-    /// Non-nil only when this session has a pending permission decision -
-    /// lets a decision happen right from the tray row instead of requiring
-    /// the pet's own overlay (which only ever surfaces one session's
-    /// request at a time) to be showing this exact session.
-    var pendingRequest: PermissionRequest? = nil
-    var onDecision: ((PermissionDecision) -> Void)? = nil
 
     @State private var confirmingKill = false
     @State private var usage: TranscriptUsage.Totals?
@@ -80,10 +74,6 @@ struct ActivityTrayRow: View {
                 }
                 killButton
             }
-
-            if let request = pendingRequest, let onDecision {
-                permissionRow(request: request, onDecision: onDecision)
-            }
         }
         .padding(8)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
@@ -107,37 +97,6 @@ struct ActivityTrayRow: View {
 
     private static func formatCost(_ usd: Double) -> String {
         usd < 0.01 && usd > 0 ? "<$0.01" : String(format: "$%.2f", usd)
-    }
-
-    /// Inline decision for this session's pending permission request - the
-    /// tray can list several sessions at once, but the pet's own overlay
-    /// only ever shows the oldest one, so any other session needing a
-    /// decision would otherwise be stuck with no way to answer it. Offers
-    /// the same three outcomes as the pet overlay (allow once / deny / hand
-    /// to the terminal), not just a binary choice.
-    @ViewBuilder
-    private func permissionRow(request: PermissionRequest, onDecision: @escaping (PermissionDecision) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let summary = request.summary, !summary.isEmpty {
-                Text(summary)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            }
-            HStack(spacing: 5) {
-                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12), fontSize: 9) {
-                    onDecision(.deny)
-                }
-                CodexPillButton(title: "Allow", tint: .black, fill: Color(red: 0.42, green: 0.55, blue: 0.98), fontSize: 9) {
-                    onDecision(.allow)
-                }
-                CodexPillButton(title: "CLI", tint: .white.opacity(0.7), fill: .white.opacity(0.08), fontSize: 9) {
-                    onDecision(.escalate)
-                }
-            }
-        }
-        .padding(.leading, 16)
     }
 
     /// Tap once to arm ("Sure?"), tap again within 3s to confirm - avoids a
@@ -171,7 +130,6 @@ struct ActivityTrayRow: View {
 /// single-pet aggregate), opened by clicking the pet.
 struct ActivityTrayView: View {
     @ObservedObject var store: SessionStore
-    @ObservedObject var permissions: PermissionRequestStore
     let identityFor: (String) -> String
     let onSelect: (EffectiveSession) -> Void
 
@@ -195,13 +153,7 @@ struct ActivityTrayView: View {
                                 session: session,
                                 fallbackName: identityFor(session.sessionId),
                                 onSelect: { onSelect(session) },
-                                onKill: { store.killSession(session) },
-                                pendingRequest: permissions.requestsBySession[session.sessionId],
-                                onDecision: { decision in
-                                    if let request = permissions.requestsBySession[session.sessionId] {
-                                        permissions.respond(request, decision: decision)
-                                    }
-                                }
+                                onKill: { store.killSession(session) }
                             )
                         }
                     }

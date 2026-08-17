@@ -4,12 +4,12 @@ import AppKit
 import ClaudePetCore
 
 /// Posts a native macOS notification the moment a permission request needs a
-/// human decision and the app isn't frontmost to see the in-bubble Allow/Deny
-/// prompt. Closes the biggest reliability gap in the pet-bubble design: today
-/// a hidden/off-screen pet lets a PermissionRequest silently time out after
-/// 45s and fall back to the CLI prompt with zero other signal. Also fires a
+/// human decision - ClaudePet is notification-only for permissions (no
+/// in-app Allow/Deny), so this always fires regardless of whether the pet
+/// panel happens to be visible; it's the only signal there is. Also fires a
 /// lighter-weight notification for `failed` and `review` state transitions,
-/// since those are also easy to miss with the pet tucked away.
+/// which stays conditioned on the pet being hidden since those do have an
+/// on-screen alternative (the pet's own activity card).
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private let center = UNUserNotificationCenter.current()
     private var authorized = false
@@ -21,8 +21,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func notifyPermissionNeeded(request: PermissionRequest, appIsActive: Bool) {
-        guard AppSettings.shared.notificationsEnabled, authorized, !appIsActive else { return }
+    func notifyPermissionNeeded(request: PermissionRequest) {
+        guard AppSettings.shared.notificationsEnabled, authorized else { return }
         let content = UNMutableNotificationContent()
         content.title = "Claude Code needs your permission"
         content.body = request.summary ?? request.tool.map { "Wants to use \($0)" } ?? "Waiting on a decision"
