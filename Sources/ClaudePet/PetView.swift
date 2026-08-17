@@ -1,4 +1,5 @@
 import SwiftUI
+import ClaudePetCore
 
 /// Colors/chrome pulled directly from a screen recording of the real Codex
 /// desktop pet overlay: a solid charcoal card (not a translucent macOS
@@ -123,8 +124,6 @@ struct PetContentView: View {
     var tasksDone: Int? = nil
     var tasksTotal: Int? = nil
     var onTap: (() -> Void)?
-    var pendingRequest: PermissionRequest?
-    var onDecision: ((Bool) -> Void)?
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     @State private var bobbing = false
@@ -169,10 +168,6 @@ struct PetContentView: View {
                 Text(footnote)
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
-            }
-
-            if let request = pendingRequest, let onDecision {
-                PermissionBubble(request: request, onDecision: onDecision)
             }
         }
         .padding(10)
@@ -257,72 +252,15 @@ struct TaskProgressRing: View {
     }
 }
 
-/// A tool-name/summary readout with Allow/Deny buttons for a blocked
-/// PermissionRequest hook, shown while the pet-hook.py process is polling
-/// for this exact decision.
-struct PermissionBubble: View {
-    let request: PermissionRequest
-    let onDecision: (Bool) -> Void
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(request.tool ?? "Permission needed")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(CodexChrome.primaryText)
-                .lineLimit(1)
-            if let summary = request.summary, !summary.isEmpty {
-                Text(summary)
-                    .font(.system(size: 9))
-                    .foregroundStyle(CodexChrome.secondaryText)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            }
-            HStack(spacing: 8) {
-                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12)) {
-                    onDecision(false)
-                }
-                CodexPillButton(title: "Allow", tint: .black, fill: CodexChrome.accent) {
-                    onDecision(true)
-                }
-            }
-        }
-        .padding(10)
-        .codexBubble(cornerRadius: 16, maxWidth: 190)
-    }
-}
-
-/// A flat, pill-shaped button matching Codex's real button chrome (solid
-/// fill, no native macOS bezel) instead of AppKit's default bordered styles.
-struct CodexPillButton: View {
-    let title: String
-    let tint: Color
-    let fill: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(tint)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .background(fill, in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// Single-pet mode: reflects the highest-priority state across all sessions.
 struct PetView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var library: PetLibrary
-    @ObservedObject var permissions: PermissionRequestStore
     @ObservedObject var animator: PetAnimator
     var onOpenTray: (() -> Void)? = nil
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     var body: some View {
-        let request = permissions.requestsBySession.values.min { $0.ts < $1.ts }
         PetContentView(
             state: store.aggregate,
             identityName: store.title ?? library.current?.name ?? "Claude",
@@ -336,10 +274,6 @@ struct PetView: View {
                 animator.triggerJump()
                 onOpenTray?()
             },
-            pendingRequest: request,
-            onDecision: { allow in
-                if let request { permissions.respond(request, allow: allow) }
-            },
             onSizeChange: onSizeChange
         )
     }
@@ -349,11 +283,9 @@ struct PetView: View {
 struct SinglePetView: View {
     @ObservedObject var viewModel: SessionPetViewModel
     @ObservedObject var library: PetLibrary
-    @ObservedObject var permissions: PermissionRequestStore
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     var body: some View {
-        let request = permissions.requestsBySession[viewModel.sessionId]
         PetContentView(
             state: viewModel.state,
             identityName: viewModel.title ?? viewModel.identityName,
@@ -366,10 +298,6 @@ struct SinglePetView: View {
             onTap: {
                 viewModel.triggerJump()
                 viewModel.focusTerminal()
-            },
-            pendingRequest: request,
-            onDecision: { allow in
-                if let request { permissions.respond(request, allow: allow) }
             },
             onSizeChange: onSizeChange
         )

@@ -10,12 +10,19 @@ There's no first-party API for this — Claude Code is a CLI. The bridge is enti
 - **Custom pets**: drop a Codex-format `pet.json` + spritesheet into `~/.claude/pets/<name>/` (or it'll pick up real Codex pets from `~/.codex/pets/`) and it just works. Falls back to a built-in emoji pet if none is installed.
 - **Speech bubble**: shows the current tool and a short summary (e.g. `my-project · Bash · npm test`).
 - **Task progress ring**: shows N/M when Claude Code is working through a plan/task list.
-- **In-bubble permission Allow/Deny**: when Claude Code actually needs a decision (not on every tool call), a bubble with Allow/Deny buttons appears on the pet itself and answers the CLI directly — no need to switch back to the terminal.
-- **Activity Tray**: click the pet (single-pet mode) to see every active session, ranked by urgency, click a row to bring that session's terminal/IDE forward, and end a session directly from the tray (two-click confirm, then `SIGTERM`→`SIGKILL`).
+- **Permission notifications, not decisions**: when Claude Code actually needs a decision (not on every tool call, and rarely at all under `defaultMode: "auto"`), the pet shows its waiting pose and a native macOS notification fires immediately — ClaudePet never decides on your behalf, it just makes sure you notice, then Claude Code's own terminal prompt handles the actual choice with zero added delay.
+- **Activity Tray**: click the pet (single-pet mode) to see every active session, ranked by urgency, click a row to bring that session's terminal/IDE forward, and end a session directly from the tray (two-click confirm, then `SIGTERM`→`SIGKILL`). Each row also shows an estimated token count and cost, read from Claude Code's own transcript files.
 - **Multi-Session Pets** (optional mode): instead of one aggregate pet, show one floating pet per active session, laid out in a row.
 - **Idle wandering**: when idle, the pet occasionally strolls to a new spot along the screen's bottom edge and settles — like real Codex pets "finding a spot to sleep."
 - **Wave on wake, jump on click**, and respects **Reduce Motion** (freezes on a still frame instead of animating).
-- Global hotkey **⌘⇧P** to show/hide the pet; a menu-bar icon for everything else.
+- Global hotkey **⌘⇧P** to show/hide the pet; **⌘⇧K** opens a Spotlight-style **command palette** to jump straight to any active session by project name.
+- **Native notifications**: if a permission decision needs you and the app isn't frontmost, you get a real macOS notification instead of a bubble no one saw. State-changing sound cues (review/failed/waiting-permission) are available too, off by default.
+- **State-aware menu-bar icon**: the status item itself changes glyph and tint (idle/working/waiting/review/failed) — no need to open the panel just to check.
+- **Hook Setup & Diagnostics**: a one-click installer that wires the hooks into `~/.claude/settings.json` for you (backing it up first) and points them at a fixed, checkout-independent script location, plus a health check for "the pet just isn't reacting."
+- **Preferences window**: wander, sounds, notifications, and Launch at Login, all in one place.
+- **Pet Gallery**: browse and preview every installed pet before applying it, instead of cycling blind.
+- **Local session stats**: sessions today/this week, tasks completed, and estimated spend on currently active sessions — local-only, never leaves the Mac.
+- **Launch at Login**, via `SMAppService`.
 
 ## Requirements
 
@@ -66,28 +73,24 @@ EOF
 
 ```
 Claude Code hook event  →  pet-hook.py  →  ~/.claude/pet/sessions/<session_id>.json
-                                                        │
-                                     DispatchSource + 5s poll fallback
-                                                        ▼
-                                              SessionStore (Swift)
-                                                        ▼
-                                          NSPanel(s) hosting SwiftUI
+                                    │                    │
+                          Unix socket ping     DispatchSource (FSEvent) + 20s poll fallback
+                                    └──────────┬─────────┘
+                                               ▼
+                                        SessionStore (Swift)
+                                               ▼
+                                     NSPanel(s) hosting SwiftUI
 ```
 
+- **Push, not poll, for the common case**: after every session/request file write, `pet-hook.py` also fires a best-effort datagram at a local Unix socket (`~/.claude/pet/notify-{sessions,requests}.sock`) the app is listening on, so the UI usually updates within milliseconds instead of waiting on the FSEvent watcher or the poll timer. The socket ping is purely additive - if it fails for any reason (old `pet-hook.py`, socket not up yet), the existing FSEvent watcher and a much-slower poll timer still catch the change on their own. This can never be the only thing standing between a permission request and it being shown - it's strictly a latency improvement layered on top of the file-based state.
 - **Hooks used**: `SessionStart`/`SessionEnd` (register/deregister), `UserPromptSubmit`/`PreToolUse`/`PostToolUse` (running), `Notification(permission_prompt)` + `PermissionRequest` (waiting), `Stop`/`SubagentStop` (review), `PostToolUseFailure`/`StopFailure` (failed), `TaskCreated`/`TaskCompleted` (progress ring counter).
 - **Why `Stop`→decay instead of `idle_prompt`**: Claude Code's `idle_prompt` notification is documented as unreliable (fires after every response, or not at all, depending on version). Instead, `Stop` sets a "review" state that decays to idle after 20 seconds locally in the app — no dependency on that heuristic.
-- **`PermissionRequest` is used for the interactive bubble, not `PreToolUse`**: `PreToolUse` fires on *every* tool call regardless of whether your `permissions.defaultMode` auto-approves it. `PermissionRequest` only fires when Claude Code actually needs a human decision, so the blocking hook (see below) never adds latency to auto-approved tool calls.
+- **`PermissionRequest` is used for the waiting pose/notification, not `PreToolUse`**: `PreToolUse` fires on *every* tool call regardless of whether your `permissions.defaultMode` auto-approves it. `PermissionRequest` only fires when Claude Code actually needs a human decision, so it never adds latency to auto-approved tool calls.
 - **Priority when multiple sessions are active** (single-pet mode): needs-permission > failed > ready-for-review > running > idle — the same ordering used for the Activity Tray's sort order.
 
-### The permission bubble, technically
+### Permission notifications, technically
 
-`pet-hook.py await-permission` writes a request file to `~/.claude/pet/requests/<uuid>.json`, then **blocks**, polling for `~/.claude/pet/responses/<uuid>.json` (up to 290s — configured hook `timeout` is 300s). Clicking Allow/Deny in the app writes the response file; the hook picks it up and prints:
-
-```json
-{"hookSpecificOutput": {"hookEventName": "PermissionRequest", "permissionDecision": "allow", "permissionDecisionReason": "..."}}
-```
-
-If nothing responds before the timeout, the hook exits with no special output and Claude Code falls back to its normal terminal prompt — it can never silently auto-allow something on your behalf.
+`pet-hook.py await-permission` writes a request file to `~/.claude/pet/requests/<uuid>.json`, pings the app so a native notification fires, and returns **immediately** — no blocking, no polling, no in-app decision. It prints no `hookSpecificOutput`, which Claude Code treats exactly like a hook with no opinion: its own terminal prompt appears right away. ClaudePet never answers a permission request on your behalf, on purpose — under `defaultMode: "auto"` these are rare, and when one happens the right move is to surface it fast, not add a second UI to decide it.
 
 ### Kill session, technically
 
@@ -113,13 +116,20 @@ Use the menu bar icon → **Next Pet** / **Use Emoji Pet** / **Reload Pets** / *
 - No first-party integration — this breaks if Anthropic changes hook payload shapes or event names.
 - `Notification`/permission-hook latency can be a couple of seconds in some Claude Code versions.
 - Click-to-focus and kill-session both rely on process-tree/command-line heuristics to find the right terminal/process; they degrade gracefully (button does nothing / is disabled) rather than acting on a guess when the heuristic can't resolve.
-- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh`, fine for running on your own Mac, not for handing to someone else without re-signing.
-- No launch-at-login yet (planned: `SMAppService`).
+- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh`, fine for running on your own Mac, not for handing to someone else without re-signing. No auto-update mechanism either; a new build means re-running `build_app.sh`.
+- Session stats deliberately don't show "time worked" — the hook payloads give a last-write timestamp per session, not a trustworthy session-start time, so a duration would mean making a number up.
+- Token/cost estimates are read from Claude Code's own transcript files (`~/.claude/projects/*/<session_id>.jsonl`), which are an undocumented, internal format, not a stable API — this can break silently if that layout changes. Pricing is a hardcoded per-model table (standard tier) that will drift out of date; treat the numbers as a ballpark, not a bill.
+
+## Testing
+
+`Sources/ClaudePetCore` holds the pure session-state logic (priority ordering, review decay, staleness, bubble text) with no AppKit/file-I/O dependencies, unit tested in `Tests/ClaudePetCoreTests` via `swift test`. Note: running the suite needs a full Xcode install, not just Command Line Tools — CLT alone doesn't ship a working XCTest/Testing runtime, independent of anything in this repo.
 
 ## Project layout
 
 ```
 Sources/ClaudePet/       Swift app (AppKit NSPanel + SwiftUI content)
+Sources/ClaudePetCore/   Pure session-state logic, unit tested, no AppKit dependency
+Tests/ClaudePetCoreTests/  swift test suite for ClaudePetCore
 hooks/pet-hook.py        The hook↔app bridge script (stdlib-only Python)
 hooks/settings-snippet.json   Hook config to merge into ~/.claude/settings.json
 build_app.sh             Builds Sources/ into ClaudePet.app

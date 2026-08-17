@@ -1,28 +1,14 @@
 import Foundation
 import Combine
 import Darwin
-
-/// A session's live-decayed view state, derived from its SessionStatus file.
-struct EffectiveSession: Identifiable {
-    var id: String { sessionId }
-    var sessionId: String
-    var state: PetState
-    var bubbleText: String
-    var cwd: String?
-    var terminalPid: Int32?
-    var terminalApp: String?
-    var tty: String?
-    var ts: TimeInterval
-    var tasksDone: Int?
-    var tasksTotal: Int?
-    var title: String?
-    var claudePid: Int32?
-}
+import ClaudePetCore
 
 /// Watches ~/.claude/pet/sessions/*.json (one file per Claude Code session,
 /// written by the pet-hook bridge script) and exposes both the per-session
 /// state (for multi-pet mode) and an aggregate across all sessions
-/// (for single-pet mode).
+/// (for single-pet mode). File I/O and liveness-checking live here; the
+/// actual "what should this session show right now" decisions are pure
+/// functions in ClaudePetCore.SessionLogic so they're unit-testable.
 final class SessionStore: ObservableObject {
     @Published private(set) var sessions: [EffectiveSession] = []
     @Published private(set) var aggregate: PetState = .idle
@@ -43,6 +29,20 @@ final class SessionStore: ObservableObject {
     /// (e.g. daemon/forked sessions) - much shorter than before, since the
     /// pid check below is what actually catches most dead sessions promptly.
     private static let staleSeconds: TimeInterval = 30 * 60
+
+    /// Fires whenever a session's state actually changes, carrying the old
+    /// and new EffectiveSession - used to trigger notifications/sounds/history
+    /// logging without those concerns living inside this store.
+    let stateTransitions = PassthroughSubject<(old: EffectiveSession?, new: EffectiveSession), Never>()
+    /// Fires once, with the ended session's last-known snapshot, right
+    /// before its file is removed - the only hook point for session history.
+    let sessionEnded = PassthroughSubject<EffectiveSession, Never>()
+
+    private var lastStateBySession: [String: PetState] = [:]
+    /// Push path: pet-hook.py pings this the instant it writes/removes a
+    /// session file, so refresh() usually runs immediately rather than
+    /// waiting on FSEvent or the poll-timer fallback below.
+    private let notifier = IPCNotifier(socketName: "notify-sessions.sock")
 
     init() {
         let base = FileManager.default.homeDirectoryForCurrentUser
@@ -66,29 +66,19 @@ final class SessionStore: ObservableObject {
         source.resume()
         self.dirWatcher = source
 
-        // Poll fallback in case an FSEvent is missed or the watched fd goes stale.
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        notifier.start { [weak self] in self?.refresh() }
+
+        // Last-resort fallback if both the socket ping and the FSEvent watch
+        // somehow miss a change (e.g. an old pet-hook.py version with
+        // neither). Relaxed from 5s now that the socket ping above is the
+        // primary push path - this only needs to catch the rare double-miss.
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             self?.refresh()
         }
         // Drives the review->idle decay and stale-file cleanup even with no fs activity.
         decayTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refresh()
         }
-    }
-
-    /// Prefers the hook's natural-language `action` sentence (e.g. "Editing
-    /// SessionStore.swift", "Done - ready for your review") - matching the
-    /// plain-English progress lines Codex's own activity card shows - over
-    /// the raw "cwd · tool · arg" join, which only remains as a fallback for
-    /// session files written before the `action` field existed.
-    private func bubble(for status: SessionStatus, state: PetState) -> String {
-        if let action = status.action, !action.isEmpty { return action }
-        let cwdName = status.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
-        var parts = [String]()
-        if !cwdName.isEmpty { parts.append(cwdName) }
-        if let tool = status.tool, !tool.isEmpty { parts.append(tool) }
-        if let summary = status.summary, !summary.isEmpty { parts.append(summary) }
-        return parts.isEmpty ? state.label : parts.joined(separator: " · ")
     }
 
     private func refresh() {
@@ -108,11 +98,13 @@ final class SessionStore: ObservableObject {
             // here for up to staleSeconds, outranking a real idle session in
             // the aggregate. Confirm liveness directly whenever we have a pid.
             if let pid = status.claudePid, kill(pid_t(pid), 0) != 0, errno == ESRCH {
+                emitSessionEnded(for: status, now: now)
                 try? FileManager.default.removeItem(at: file)
                 continue
             }
 
-            if now - status.ts > Self.staleSeconds {
+            if SessionLogic.isStale(status: status, now: now, staleSeconds: Self.staleSeconds) {
+                emitSessionEnded(for: status, now: now)
                 try? FileManager.default.removeItem(at: file)
                 continue
             }
@@ -120,11 +112,11 @@ final class SessionStore: ObservableObject {
         }
 
         let effective: [EffectiveSession] = statuses.map { s in
-            let state = (s.state == .review && now - s.ts > Self.reviewDecaySeconds) ? .idle : s.state
+            let state = SessionLogic.effectiveState(status: s, now: now, reviewDecaySeconds: Self.reviewDecaySeconds)
             return EffectiveSession(
                 sessionId: s.sessionId,
                 state: state,
-                bubbleText: bubble(for: s, state: state),
+                bubbleText: SessionLogic.bubbleText(for: s, state: state),
                 cwd: s.cwd,
                 terminalPid: s.terminalPid,
                 terminalApp: s.terminalApp,
@@ -137,10 +129,12 @@ final class SessionStore: ObservableObject {
             )
         }.sorted { $0.ts < $1.ts }
 
+        emitTransitions(for: effective)
+
         sessions = effective
         sessionCount = effective.count
 
-        guard let winner = effective.max(by: { $0.state.priority < $1.state.priority }) else {
+        guard let winner = SessionLogic.winner(among: effective) else {
             aggregate = .idle
             bubbleText = ""
             tasksDone = nil
@@ -153,6 +147,38 @@ final class SessionStore: ObservableObject {
         tasksDone = winner.tasksDone
         tasksTotal = winner.tasksTotal
         title = winner.title
+    }
+
+    private func emitTransitions(for effective: [EffectiveSession]) {
+        var seen: Set<String> = []
+        for session in effective {
+            seen.insert(session.sessionId)
+            let previous = lastStateBySession[session.sessionId]
+            if previous != session.state {
+                let oldSession = previous.map { old in
+                    var s = session
+                    s.state = old
+                    return s
+                }
+                stateTransitions.send((old: oldSession, new: session))
+                lastStateBySession[session.sessionId] = session.state
+            }
+        }
+        for goneId in lastStateBySession.keys where !seen.contains(goneId) {
+            lastStateBySession.removeValue(forKey: goneId)
+        }
+    }
+
+    private func emitSessionEnded(for status: SessionStatus, now: TimeInterval) {
+        let state = SessionLogic.effectiveState(status: status, now: now, reviewDecaySeconds: Self.reviewDecaySeconds)
+        sessionEnded.send(EffectiveSession(
+            sessionId: status.sessionId, state: state,
+            bubbleText: SessionLogic.bubbleText(for: status, state: state),
+            cwd: status.cwd, terminalPid: status.terminalPid, terminalApp: status.terminalApp,
+            tty: status.tty, ts: status.ts, tasksDone: status.tasksDone, tasksTotal: status.tasksTotal,
+            title: status.title, claudePid: status.claudePid
+        ))
+        lastStateBySession.removeValue(forKey: status.sessionId)
     }
 
     /// Ends a Claude Code session from the tray, mirroring "close tab": sends
@@ -169,6 +195,8 @@ final class SessionStore: ObservableObject {
                 }
             }
         }
+        sessionEnded.send(session)
+        lastStateBySession.removeValue(forKey: session.sessionId)
         try? FileManager.default.removeItem(
             at: directory.appendingPathComponent("\(session.sessionId).json")
         )

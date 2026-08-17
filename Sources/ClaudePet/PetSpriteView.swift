@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ClaudePetCore
 
 /// Cycles a custom pet's sprite-sheet frames for the current PetState, or an
 /// explicit override row (e.g. a one-shot "jumping"/"waving" gesture, or an

@@ -1,4 +1,5 @@
 import SwiftUI
+import ClaudePetCore
 
 /// One row in the Activity Tray: a session's chat summary, status, and
 /// current activity, selectable to jump to that session's terminal -
@@ -10,14 +11,9 @@ struct ActivityTrayRow: View {
     let fallbackName: String
     let onSelect: () -> Void
     let onKill: () -> Void
-    /// Non-nil only when this session has a pending permission decision -
-    /// lets Allow/Deny happen right from the tray row instead of requiring
-    /// the single floating bubble (which only ever surfaces one session's
-    /// request at a time) to be showing this exact session.
-    var pendingRequest: PermissionRequest? = nil
-    var onDecision: ((Bool) -> Void)? = nil
 
     @State private var confirmingKill = false
+    @State private var usage: TranscriptUsage.Totals?
 
     private var displayTitle: String {
         session.title ?? fallbackName
@@ -63,6 +59,11 @@ struct ActivityTrayRow: View {
                             .lineLimit(2)
                             .truncationMode(.middle)
                     }
+                    if let usage {
+                        Text("\(Self.formatTokens(usage.totalTokens)) tok · \(Self.formatCost(usage.estimatedCostUSD)) est.")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.45))
+                    }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onSelect)
@@ -73,40 +74,29 @@ struct ActivityTrayRow: View {
                 }
                 killButton
             }
-
-            if let request = pendingRequest, let onDecision {
-                permissionRow(request: request, onDecision: onDecision)
-            }
         }
         .padding(8)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .task(id: session.sessionId) {
+            // Off the main actor's synchronous path deliberately - reading a
+            // transcript is a file read that can occasionally be a few MB,
+            // and this must never stall the tray from opening.
+            let sessionId = session.sessionId
+            let result = await Task.detached(priority: .utility) {
+                TranscriptUsage.totals(forSession: sessionId)
+            }.value
+            usage = result
+        }
     }
 
-    /// Inline Allow/Deny for this session's pending permission request - the
-    /// tray can list several sessions at once, but the single floating pet
-    /// bubble only ever shows the oldest one, so any other session needing a
-    /// decision would otherwise be stuck with no way to answer it from the
-    /// overlay.
-    @ViewBuilder
-    private func permissionRow(request: PermissionRequest, onDecision: @escaping (Bool) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let summary = request.summary, !summary.isEmpty {
-                Text(summary)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            }
-            HStack(spacing: 6) {
-                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12)) {
-                    onDecision(false)
-                }
-                CodexPillButton(title: "Allow", tint: .black, fill: Color(red: 0.42, green: 0.55, blue: 0.98)) {
-                    onDecision(true)
-                }
-            }
-        }
-        .padding(.leading, 16)
+    private static func formatTokens(_ count: Int) -> String {
+        if count >= 1_000_000 { return String(format: "%.1fM", Double(count) / 1_000_000) }
+        if count >= 1_000 { return String(format: "%.1fk", Double(count) / 1_000) }
+        return "\(count)"
+    }
+
+    private static func formatCost(_ usd: Double) -> String {
+        usd < 0.01 && usd > 0 ? "<$0.01" : String(format: "$%.2f", usd)
     }
 
     /// Tap once to arm ("Sure?"), tap again within 3s to confirm - avoids a
@@ -140,7 +130,6 @@ struct ActivityTrayRow: View {
 /// single-pet aggregate), opened by clicking the pet.
 struct ActivityTrayView: View {
     @ObservedObject var store: SessionStore
-    @ObservedObject var permissions: PermissionRequestStore
     let identityFor: (String) -> String
     let onSelect: (EffectiveSession) -> Void
 
@@ -164,13 +153,7 @@ struct ActivityTrayView: View {
                                 session: session,
                                 fallbackName: identityFor(session.sessionId),
                                 onSelect: { onSelect(session) },
-                                onKill: { store.killSession(session) },
-                                pendingRequest: permissions.requestsBySession[session.sessionId],
-                                onDecision: { allow in
-                                    if let request = permissions.requestsBySession[session.sessionId] {
-                                        permissions.respond(request, allow: allow)
-                                    }
-                                }
+                                onKill: { store.killSession(session) }
                             )
                         }
                     }

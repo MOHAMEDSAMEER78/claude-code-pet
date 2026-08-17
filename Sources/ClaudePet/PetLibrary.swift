@@ -26,6 +26,15 @@ final class PetLibrary: ObservableObject {
         }
     }
 
+    /// Jumps directly to a specific pet by index - used by the Pet Gallery,
+    /// which shows every installed pet at once rather than cycling one at a
+    /// time via the menu bar's "Next Pet".
+    func select(index: Int) {
+        guard availableDirs.indices.contains(index) else { return }
+        selectedIndex = index
+        current = PetAssetLoader.load(from: availableDirs[index])
+    }
+
     func selectNext() {
         guard !availableDirs.isEmpty else { return }
         let next = ((selectedIndex ?? -1) + 1) % availableDirs.count

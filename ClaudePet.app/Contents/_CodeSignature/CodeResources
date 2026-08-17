@@ -8,6 +8,14 @@
 		<data>
 		9fzRFE3pjkwUBhOdkw0fJr4Txs4=
 		</data>
+		<key>Resources/pet-hook.py</key>
+		<data>
+		79NQ7Bdsb76r1jUwiMnSPFuq6e8=
+		</data>
+		<key>Resources/settings-snippet.json</key>
+		<data>
+		7tX+/kZWBB/Tc/BIlFt2dhL2rJY=
+		</data>
 	</dict>
 	<key>files2</key>
 	<dict>
@@ -16,6 +24,20 @@
 			<key>hash2</key>
 			<data>
 			rDCFXyO72/NU3dPPMALW4gQ8+/0pENnfnZxTZGKlzWI=
+			</data>
+		</dict>
+		<key>Resources/pet-hook.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			t4UxfS8PwLyxLGqXWMyBbGgXKyb+8qxAUT4TfSO84OA=
+			</data>
+		</dict>
+		<key>Resources/settings-snippet.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Ur0YOblb4uoMUFIDEVnzm54Nbm0wjsZPCbGJIIMRtyg=
 			</data>
 		</dict>
 	</dict>

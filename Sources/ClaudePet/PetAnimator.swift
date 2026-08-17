@@ -14,18 +14,13 @@ import Combine
 final class PetAnimator: ObservableObject {
     @Published var overrideRow: String?
 
-    private static let wanderEnabledDefaultsKey = "wanderEnabled"
-
-    /// Whether the pet is allowed to stroll on its own while idle. Persisted
-    /// so the choice survives relaunches; defaults to on (matches the
-    /// documented real-Codex idle behavior) unless the user turns it off.
+    /// Whether the pet is allowed to stroll on its own while idle. Backed by
+    /// AppSettings (the single settings model) rather than its own
+    /// UserDefaults key, so it shows up in Preferences too.
     var wanderEnabled: Bool {
-        get {
-            if UserDefaults.standard.object(forKey: Self.wanderEnabledDefaultsKey) == nil { return true }
-            return UserDefaults.standard.bool(forKey: Self.wanderEnabledDefaultsKey)
-        }
+        get { AppSettings.shared.wanderEnabled }
         set {
-            UserDefaults.standard.set(newValue, forKey: Self.wanderEnabledDefaultsKey)
+            AppSettings.shared.wanderEnabled = newValue
             if !newValue { cancelWander() }
         }
     }

@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import ClaudePetCore
 
 /// Manages one floating PetPanel per active Claude Code session, adding and
 /// removing panels as sessions come and go (SessionStore already handles
@@ -8,16 +9,14 @@ import SwiftUI
 final class MultiPetController {
     private let store: SessionStore
     private let library: PetLibrary
-    private let permissions: PermissionRequestStore
     private var panels: [String: PetPanel] = [:]
     private var viewModels: [String: SessionPetViewModel] = [:]
     private var cancellable: AnyCancellable?
     private(set) var isActive = false
 
-    init(store: SessionStore, library: PetLibrary, permissions: PermissionRequestStore) {
+    init(store: SessionStore, library: PetLibrary) {
         self.store = store
         self.library = library
-        self.permissions = permissions
     }
 
     func start() {
@@ -58,7 +57,7 @@ final class MultiPetController {
                 let origin = PetPanel.slotOrigin(index: index)
                 var createdPanel: PetPanel?
                 let view = SinglePetView(
-                    viewModel: vm, library: library, permissions: permissions,
+                    viewModel: vm, library: library,
                     onSizeChange: { size in createdPanel?.fitToContent(size) }
                 )
                 let panel = PetPanel(rootView: view, origin: origin)

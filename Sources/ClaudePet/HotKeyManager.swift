@@ -8,14 +8,27 @@ final class HotKeyManager {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private let onPress: () -> Void
+    private let id: UInt32
 
     private static let signature: OSType = 0x5065_7448 // 'PetH'
+    /// Each instance needs a distinct id: InstallEventHandler installs on the
+    /// shared application event target, so every installed handler observes
+    /// every hotkey press event class-wide - without checking the event's
+    /// own hotKeyID, a second registered hotkey (e.g. the command palette's)
+    /// would also fire the first instance's (e.g. show/hide)'s callback.
+    private static var nextId: UInt32 = 1
 
-    init(keyCode: UInt32 = UInt32(kVK_ANSI_P),
-         modifiers: UInt32 = UInt32(cmdKey | shiftKey),
+    init(keyCode: UInt32,
+         modifiers: UInt32,
          onPress: @escaping () -> Void) {
         self.onPress = onPress
+        self.id = Self.nextId
+        Self.nextId += 1
         register(keyCode: keyCode, modifiers: modifiers)
+    }
+
+    convenience init(onPress: @escaping () -> Void) {
+        self.init(keyCode: UInt32(kVK_ANSI_P), modifiers: UInt32(cmdKey | shiftKey), onPress: onPress)
     }
 
     private func register(keyCode: UInt32, modifiers: UInt32) {
@@ -26,13 +39,19 @@ final class HotKeyManager {
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
-            guard let userData else { return noErr }
+            guard let event, let userData else { return noErr }
+            var pressedID = EventHotKeyID()
+            GetEventParameter(
+                event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                nil, MemoryLayout<EventHotKeyID>.size, nil, &pressedID
+            )
             let manager = Unmanaged<HotKeyManager>.fromOpaque(userData).takeUnretainedValue()
+            guard pressedID.id == manager.id else { return noErr }
             manager.onPress()
             return noErr
         }, 1, &eventType, selfPtr, &handlerRef)
 
-        let hotKeyID = EventHotKeyID(signature: Self.signature, id: 1)
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id)
         RegisterEventHotKey(keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
     }
 
