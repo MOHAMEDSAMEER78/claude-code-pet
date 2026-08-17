@@ -68,6 +68,21 @@ TOP_LEVEL_APP_COMMS = {
 }
 
 
+def atomic_write_json(path, data):
+    """Write `data` as JSON to `path` via write-tmp-then-rename. The tmp
+    filename includes our own pid + a random suffix - a *fixed* name like
+    `path + ".tmp"` collides when two pet-hook.py processes race on the same
+    session file (e.g. duplicate hook entries from a settings.json merge, or
+    Stop/SubagentStop firing close together): one process's os.replace can
+    consume the tmp file the other just wrote, leaving the second process's
+    own os.replace to fail with FileNotFoundError.
+    """
+    tmp_path = f"{path}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp_path, path)
+
+
 def find_terminal_ancestor(pid, max_hops=25):
     """Walk parent PIDs looking for a recognizable terminal/IDE app, and
     along the way remember the tty of the last real (non-GUI) ancestor -
@@ -291,10 +306,7 @@ def await_permission_decision(session_id, session_file, cwd, tool, summary):
         "ts": time.time(),
     }
     request_path = os.path.join(REQUESTS_DIR, f"{request_id}.json")
-    tmp_path = request_path + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(request, f)
-    os.replace(tmp_path, request_path)
+    atomic_write_json(request_path, request)
 
     response_path = os.path.join(RESPONSES_DIR, f"{request_id}.json")
     deadline = time.time() + AWAIT_PERMISSION_TIMEOUT_SECONDS
@@ -327,10 +339,7 @@ def await_permission_decision(session_id, session_file, cwd, tool, summary):
         if existing.get("state") == "waiting-permission":
             existing["state"] = "running"
             existing["ts"] = time.time()
-            tmp_path = session_file + ".tmp"
-            with open(tmp_path, "w") as f:
-                json.dump(existing, f)
-            os.replace(tmp_path, session_file)
+            atomic_write_json(session_file, existing)
         return
 
     print(json.dumps({
@@ -380,10 +389,7 @@ def main():
             "tty": tty, "tasks_done": tasks_done, "tasks_total": tasks_total, "title": title,
             "claude_pid": claude_pid,
         }
-        tmp_path = session_file + ".tmp"
-        with open(tmp_path, "w") as f:
-            json.dump(status, f)
-        os.replace(tmp_path, session_file)
+        atomic_write_json(session_file, status)
 
         await_permission_decision(session_id, session_file, payload.get("cwd"), tool, summary)
         return
@@ -437,10 +443,7 @@ def main():
         "claude_pid": claude_pid,
     }
 
-    tmp_path = session_file + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(status, f)
-    os.replace(tmp_path, session_file)
+    atomic_write_json(session_file, status)
 
 
 if __name__ == "__main__":

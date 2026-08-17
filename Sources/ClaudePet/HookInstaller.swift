@@ -81,9 +81,14 @@ enum HookInstaller {
 
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
         for (event, groups) in snippetHooks {
-            var existingGroups = hooks[event] as? [Any] ?? []
-            if let newGroups = groups as? [Any] { existingGroups.append(contentsOf: newGroups) }
-            hooks[event] = existingGroups
+            // Strip any ClaudePet entries from a previous install/repair
+            // before appending the fresh set - otherwise running this twice
+            // (first-run offer, then a manual "Repair Hooks" click) leaves
+            // TWO copies of the same hook wired in, which fire concurrently
+            // on every event and race on writing the same session file.
+            let existingGroups = (hooks[event] as? [Any] ?? []).filter { !isClaudePetGroup($0) }
+            let newGroups = groups as? [Any] ?? []
+            hooks[event] = existingGroups + newGroups
         }
         settings["hooks"] = hooks
 
@@ -146,6 +151,15 @@ enum HookInstaller {
         }
 
         return checks
+    }
+
+    /// True if a hook-config "group" (one matcher's `{matcher, hooks}` entry)
+    /// contains a `pet-hook.py` command - whether pointing at the old
+    /// checkout-relative placeholder or the installed path, so re-running
+    /// install() cleans up entries from either era.
+    private static func isClaudePetGroup(_ group: Any) -> Bool {
+        guard let group = group as? [String: Any], let entries = group["hooks"] as? [[String: Any]] else { return false }
+        return entries.contains { ($0["command"] as? String)?.contains("pet-hook.py") ?? false }
     }
 
     private static func allCommands(in hooks: [String: Any]) -> [String] {
