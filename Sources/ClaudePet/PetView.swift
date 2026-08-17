@@ -173,7 +173,7 @@ struct PetContentView: View {
             }
 
             if let request = pendingRequest, let onDecision {
-                PermissionBubble(request: request, onDecision: onDecision)
+                PermissionOverlayCard(request: request, onDecision: onDecision)
             }
         }
         .padding(10)
@@ -258,55 +258,24 @@ struct TaskProgressRing: View {
     }
 }
 
-/// A tool-name/summary readout with Allow/Deny buttons for a blocked
-/// PermissionRequest hook, shown while the pet-hook.py process is polling
-/// for this exact decision.
-struct PermissionBubble: View {
-    let request: PermissionRequest
-    let onDecision: (Bool) -> Void
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(request.tool ?? "Permission needed")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(CodexChrome.primaryText)
-                .lineLimit(1)
-            if let summary = request.summary, !summary.isEmpty {
-                Text(summary)
-                    .font(.system(size: 9))
-                    .foregroundStyle(CodexChrome.secondaryText)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            }
-            HStack(spacing: 8) {
-                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12)) {
-                    onDecision(false)
-                }
-                CodexPillButton(title: "Allow", tint: .black, fill: CodexChrome.accent) {
-                    onDecision(true)
-                }
-            }
-        }
-        .padding(10)
-        .codexBubble(cornerRadius: 16, maxWidth: 190)
-    }
-}
-
 /// A flat, pill-shaped button matching Codex's real button chrome (solid
 /// fill, no native macOS bezel) instead of AppKit's default bordered styles.
 struct CodexPillButton: View {
     let title: String
     let tint: Color
     let fill: Color
+    var fontSize: CGFloat = 10
+    var expand: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: fontSize, weight: .semibold))
                 .foregroundStyle(tint)
+                .frame(maxWidth: expand ? .infinity : nil)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 5)
+                .padding(.vertical, expand ? 9 : 5)
                 .background(fill, in: Capsule())
         }
         .buttonStyle(.plain)
