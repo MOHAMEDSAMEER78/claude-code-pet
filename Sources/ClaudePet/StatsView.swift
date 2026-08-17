@@ -6,6 +6,12 @@ import SwiftUI
 /// duration would mean making numbers up.
 struct StatsView: View {
     let stats: SessionHistoryStore.Stats
+    /// Currently-active session ids, so we can show a live "what am I
+    /// spending right now" figure alongside the historical counters -
+    /// summed from Claude Code's own transcript files, not the history log.
+    var activeSessionIds: [String] = []
+
+    @State private var activeSpendUSD: Double?
 
     private var approvalRate: String {
         let total = stats.permissionsApproved + stats.permissionsDenied
@@ -27,9 +33,23 @@ struct StatsView: View {
                 stat("Tasks completed (7d)", "\(stats.tasksCompletedThisWeek)")
                 stat("Permission approval rate", approvalRate)
             }
+
+            if !activeSessionIds.isEmpty {
+                stat("Active sessions, est. spend", activeSpendUSD.map { String(format: "$%.2f", $0) } ?? "…")
+                Text("Estimated from Claude Code's own transcripts (undocumented format) using rough per-model pricing - a ballpark, not a bill.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(18)
         .frame(width: 340)
+        .task(id: activeSessionIds) {
+            let ids = activeSessionIds
+            let total = await Task.detached(priority: .utility) {
+                ids.reduce(0.0) { $0 + (TranscriptUsage.totals(forSession: $1)?.estimatedCostUSD ?? 0) }
+            }.value
+            activeSpendUSD = total
+        }
     }
 
     private func stat(_ label: String, _ value: String) -> some View {

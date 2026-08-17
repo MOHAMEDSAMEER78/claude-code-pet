@@ -321,7 +321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showStats() {
         showUtilityWindow(&statsWindow, title: "Session Stats") {
-            StatsView(stats: self.historyStore.loadStats())
+            StatsView(stats: self.historyStore.loadStats(), activeSessionIds: self.store.sessions.map(\.sessionId))
         }
     }
 
