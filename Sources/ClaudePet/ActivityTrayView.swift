@@ -12,11 +12,11 @@ struct ActivityTrayRow: View {
     let onSelect: () -> Void
     let onKill: () -> Void
     /// Non-nil only when this session has a pending permission decision -
-    /// lets Allow/Deny happen right from the tray row instead of requiring
-    /// the single floating bubble (which only ever surfaces one session's
+    /// lets a decision happen right from the tray row instead of requiring
+    /// the pet's own overlay (which only ever surfaces one session's
     /// request at a time) to be showing this exact session.
     var pendingRequest: PermissionRequest? = nil
-    var onDecision: ((Bool) -> Void)? = nil
+    var onDecision: ((PermissionDecision) -> Void)? = nil
 
     @State private var confirmingKill = false
     @State private var usage: TranscriptUsage.Totals?
@@ -109,13 +109,14 @@ struct ActivityTrayRow: View {
         usd < 0.01 && usd > 0 ? "<$0.01" : String(format: "$%.2f", usd)
     }
 
-    /// Inline Allow/Deny for this session's pending permission request - the
-    /// tray can list several sessions at once, but the single floating pet
-    /// bubble only ever shows the oldest one, so any other session needing a
-    /// decision would otherwise be stuck with no way to answer it from the
-    /// overlay.
+    /// Inline decision for this session's pending permission request - the
+    /// tray can list several sessions at once, but the pet's own overlay
+    /// only ever shows the oldest one, so any other session needing a
+    /// decision would otherwise be stuck with no way to answer it. Offers
+    /// the same three outcomes as the pet overlay (allow once / deny / hand
+    /// to the terminal), not just a binary choice.
     @ViewBuilder
-    private func permissionRow(request: PermissionRequest, onDecision: @escaping (Bool) -> Void) -> some View {
+    private func permissionRow(request: PermissionRequest, onDecision: @escaping (PermissionDecision) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if let summary = request.summary, !summary.isEmpty {
                 Text(summary)
@@ -124,12 +125,15 @@ struct ActivityTrayRow: View {
                     .lineLimit(2)
                     .truncationMode(.middle)
             }
-            HStack(spacing: 6) {
-                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12)) {
-                    onDecision(false)
+            HStack(spacing: 5) {
+                CodexPillButton(title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12), fontSize: 9) {
+                    onDecision(.deny)
                 }
-                CodexPillButton(title: "Allow", tint: .black, fill: Color(red: 0.42, green: 0.55, blue: 0.98)) {
-                    onDecision(true)
+                CodexPillButton(title: "Allow", tint: .black, fill: Color(red: 0.42, green: 0.55, blue: 0.98), fontSize: 9) {
+                    onDecision(.allow)
+                }
+                CodexPillButton(title: "CLI", tint: .white.opacity(0.7), fill: .white.opacity(0.08), fontSize: 9) {
+                    onDecision(.escalate)
                 }
             }
         }
@@ -193,9 +197,9 @@ struct ActivityTrayView: View {
                                 onSelect: { onSelect(session) },
                                 onKill: { store.killSession(session) },
                                 pendingRequest: permissions.requestsBySession[session.sessionId],
-                                onDecision: { allow in
+                                onDecision: { decision in
                                     if let request = permissions.requestsBySession[session.sessionId] {
-                                        permissions.respond(request, allow: allow)
+                                        permissions.respond(request, decision: decision)
                                     }
                                 }
                             )

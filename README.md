@@ -10,7 +10,7 @@ There's no first-party API for this — Claude Code is a CLI. The bridge is enti
 - **Custom pets**: drop a Codex-format `pet.json` + spritesheet into `~/.claude/pets/<name>/` (or it'll pick up real Codex pets from `~/.codex/pets/`) and it just works. Falls back to a built-in emoji pet if none is installed.
 - **Speech bubble**: shows the current tool and a short summary (e.g. `my-project · Bash · npm test`).
 - **Task progress ring**: shows N/M when Claude Code is working through a plan/task list.
-- **In-bubble permission Allow/Deny**: when Claude Code actually needs a decision (not on every tool call), a bubble with Allow/Deny buttons appears on the pet itself and answers the CLI directly — no need to switch back to the terminal.
+- **In-pet permission overlay**: when Claude Code actually needs a decision (not on every tool call), a bigger, high-contrast card appears on the pet itself with a live countdown, and three real outcomes — **Allow Once**, **Deny**, or **Ask in Terminal** (hands it to Claude Code's own prompt) — answering the CLI directly with no need to switch back to the terminal. The Activity Tray offers the same three choices per-row for whichever session isn't the one currently shown on the pet.
 - **Activity Tray**: click the pet (single-pet mode) to see every active session, ranked by urgency, click a row to bring that session's terminal/IDE forward, and end a session directly from the tray (two-click confirm, then `SIGTERM`→`SIGKILL`). Each row also shows an estimated token count and cost, read from Claude Code's own transcript files.
 - **Multi-Session Pets** (optional mode): instead of one aggregate pet, show one floating pet per active session, laid out in a row.
 - **Idle wandering**: when idle, the pet occasionally strolls to a new spot along the screen's bottom edge and settles — like real Codex pets "finding a spot to sleep."
@@ -90,13 +90,13 @@ Claude Code hook event  →  pet-hook.py  →  ~/.claude/pet/sessions/<session_i
 
 ### The permission bubble, technically
 
-`pet-hook.py await-permission` writes a request file to `~/.claude/pet/requests/<uuid>.json`, then **blocks**, polling for `~/.claude/pet/responses/<uuid>.json` (up to 290s — configured hook `timeout` is 300s). Clicking Allow/Deny in the app writes the response file; the hook picks it up and prints:
+`pet-hook.py await-permission` writes a request file to `~/.claude/pet/requests/<uuid>.json`, then **blocks**, polling for `~/.claude/pet/responses/<uuid>.json` (up to 290s — configured hook `timeout` is 300s). Clicking Allow Once/Deny/Ask in Terminal in the app writes the response file; the hook picks it up and prints the corresponding decision - `permissionDecision` is one of `allow`, `deny`, or `escalate` (Claude Code's real third option: hand the decision to its own terminal prompt instead of the overlay answering it):
 
 ```json
 {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "permissionDecision": "allow", "permissionDecisionReason": "..."}}
 ```
 
-If nothing responds before the timeout, the hook exits with no special output and Claude Code falls back to its normal terminal prompt — it can never silently auto-allow something on your behalf.
+If nothing responds before the timeout, the hook exits with no special output and Claude Code falls back to its normal terminal prompt — same net effect as an explicit "Ask in Terminal," just implicit. Either way, the hook can never silently auto-allow something on your behalf.
 
 ### Kill session, technically
 

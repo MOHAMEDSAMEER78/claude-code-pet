@@ -125,7 +125,7 @@ struct PetContentView: View {
     var tasksTotal: Int? = nil
     var onTap: (() -> Void)?
     var pendingRequest: PermissionRequest?
-    var onDecision: ((Bool) -> Void)?
+    var onDecision: ((PermissionDecision) -> Void)?
     var onSizeChange: ((CGSize) -> Void)? = nil
 
     @State private var bobbing = false
@@ -307,8 +307,8 @@ struct PetView: View {
                 onOpenTray?()
             },
             pendingRequest: request,
-            onDecision: { allow in
-                if let request { permissions.respond(request, allow: allow) }
+            onDecision: { decision in
+                if let request { permissions.respond(request, decision: decision) }
             },
             onSizeChange: onSizeChange
         )
@@ -338,8 +338,8 @@ struct SinglePetView: View {
                 viewModel.focusTerminal()
             },
             pendingRequest: request,
-            onDecision: { allow in
-                if let request { permissions.respond(request, allow: allow) }
+            onDecision: { decision in
+                if let request { permissions.respond(request, decision: decision) }
             },
             onSizeChange: onSizeChange
         )

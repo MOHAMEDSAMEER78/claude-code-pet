@@ -2,18 +2,26 @@ import Foundation
 import Combine
 import ClaudePetCore
 
+/// Mirrors the three outcomes pet-hook.py's await-permission actually
+/// understands - not just allow/deny. "escalate" hands the decision to
+/// Claude Code's own terminal prompt instead of answering from the overlay,
+/// same as what already happens on a silent timeout, but said explicitly.
+enum PermissionDecision: String {
+    case allow, deny, escalate
+}
+
 /// Watches ~/.claude/pet/requests/*.json for pending permission decisions
 /// and writes ~/.claude/pet/responses/<id>.json when the user answers from
-/// the pet's Allow/Deny bubble. The blocked pet-hook.py process polls for
+/// the pet's permission overlay. The blocked pet-hook.py process polls for
 /// the response file and relays the decision back to Claude Code.
 final class PermissionRequestStore: ObservableObject {
     @Published private(set) var requestsBySession: [String: PermissionRequest] = [:]
 
-    /// Fires every time the user answers a bubble/tray Allow/Deny, for
+    /// Fires every time the user answers a request, for
     /// SessionHistoryStore's approve/deny counters - kept as a side-channel
     /// event rather than baked into `respond` so the store doesn't need to
     /// know history-tracking exists.
-    let decisions = PassthroughSubject<(sessionId: String, allow: Bool), Never>()
+    let decisions = PassthroughSubject<(sessionId: String, decision: PermissionDecision), Never>()
 
     private let requestsDir: URL
     private let responsesDir: URL
@@ -84,14 +92,14 @@ final class PermissionRequestStore: ObservableObject {
         requestsBySession = bySession
     }
 
-    func respond(_ request: PermissionRequest, allow: Bool) {
-        let response: [String: Any] = ["decision": allow ? "allow" : "deny"]
+    func respond(_ request: PermissionRequest, decision: PermissionDecision) {
+        let response: [String: Any] = ["decision": decision.rawValue]
         guard let data = try? JSONSerialization.data(withJSONObject: response) else { return }
         try? data.write(to: responsesDir.appendingPathComponent("\(request.requestId).json"))
         // Clear immediately so the bubble disappears without waiting on the
         // hook process to notice and clean up.
         try? FileManager.default.removeItem(at: requestsDir.appendingPathComponent("\(request.requestId).json"))
         requestsBySession.removeValue(forKey: request.sessionId)
-        decisions.send((sessionId: request.sessionId, allow: allow))
+        decisions.send((sessionId: request.sessionId, decision: decision))
     }
 }

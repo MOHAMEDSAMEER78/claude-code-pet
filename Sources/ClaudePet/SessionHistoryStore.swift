@@ -43,8 +43,16 @@ final class SessionHistoryStore: ObservableObject {
             .store(in: &cancellables)
 
         permissions.decisions
-            .sink { decision in
-                let key = decision.allow ? Self.approvedKey : Self.deniedKey
+            .sink { event in
+                // "escalate" (handed to the terminal prompt instead) counts
+                // toward neither - it isn't a decision this app made.
+                let key: String?
+                switch event.decision {
+                case .allow: key = Self.approvedKey
+                case .deny: key = Self.deniedKey
+                case .escalate: key = nil
+                }
+                guard let key else { return }
                 UserDefaults.standard.set(UserDefaults.standard.integer(forKey: key) + 1, forKey: key)
             }
             .store(in: &cancellables)

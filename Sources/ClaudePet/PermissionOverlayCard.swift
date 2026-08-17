@@ -12,7 +12,7 @@ import ClaudePetCore
 /// separate overlay window would otherwise be for.
 struct PermissionOverlayCard: View {
     let request: PermissionRequest
-    let onDecision: (Bool) -> Void
+    let onDecision: (PermissionDecision) -> Void
 
     /// Mirrors pet-hook.py's AWAIT_PERMISSION_TIMEOUT_SECONDS. The two live
     /// in different processes/languages so this can drift out of sync with
@@ -75,15 +75,21 @@ struct PermissionOverlayCard: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            VStack(spacing: 6) {
                 CodexPillButton(
-                    title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12),
+                    title: "Allow Once", tint: .black, fill: color,
                     fontSize: 12, expand: true
-                ) { onDecision(false) }
-                CodexPillButton(
-                    title: "Allow", tint: .black, fill: color,
-                    fontSize: 12, expand: true
-                ) { onDecision(true) }
+                ) { onDecision(.allow) }
+                HStack(spacing: 6) {
+                    CodexPillButton(
+                        title: "Deny", tint: .white.opacity(0.85), fill: .white.opacity(0.12),
+                        fontSize: 11, expand: true
+                    ) { onDecision(.deny) }
+                    CodexPillButton(
+                        title: "Ask in Terminal", tint: .white.opacity(0.7), fill: .white.opacity(0.08),
+                        fontSize: 9, expand: true
+                    ) { onDecision(.escalate) }
+                }
             }
         }
         .padding(14)

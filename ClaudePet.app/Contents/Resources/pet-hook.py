@@ -356,11 +356,32 @@ def await_permission_decision(session_id, session_file, cwd, tool, summary):
     except FileNotFoundError:
         pass
 
-    if decision not in ("allow", "deny"):
+    if decision not in ("allow", "deny", "escalate"):
         # Timed out or unreadable - fall back to Claude Code's normal prompt,
         # and clear our own "waiting-permission" state so the pet doesn't
         # keep showing that pose/bubble after the decision was made outside
         # the app (e.g. answered directly in the terminal).
+        existing = load_existing_status(session_file)
+        if existing.get("state") == "waiting-permission":
+            existing["state"] = "running"
+            existing["ts"] = time.time()
+            atomic_write_json(session_file, existing)
+            notify(SESSIONS_NOTIFY_SOCKET)
+        return
+
+    if decision == "escalate":
+        # User explicitly chose "Ask in Terminal" rather than deciding from
+        # the overlay - same net effect as a timeout (Claude Code shows its
+        # own prompt), but said out loud via permissionDecision rather than
+        # inferred from silence, and clears the pet's waiting pose right
+        # away instead of waiting the rest of the timeout window.
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PermissionRequest",
+                "permissionDecision": "escalate",
+                "permissionDecisionReason": "Chose to decide in the terminal (ClaudePet overlay)",
+            }
+        }))
         existing = load_existing_status(session_file)
         if existing.get("state") == "waiting-permission":
             existing["state"] = "running"
