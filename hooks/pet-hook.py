@@ -31,6 +31,7 @@ few milliseconds so it never blocks the agent turn.
 """
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -39,6 +40,30 @@ import uuid
 SESSIONS_DIR = os.path.expanduser("~/.claude/pet/sessions")
 REQUESTS_DIR = os.path.expanduser("~/.claude/pet/requests")
 RESPONSES_DIR = os.path.expanduser("~/.claude/pet/responses")
+
+# Datagram (connectionless) Unix sockets the app listens on, one per
+# directory it watches - pinged right after a write/removal in that
+# directory so the app refreshes immediately instead of waiting on its own
+# poll-timer fallback (which still exists and still works on its own; this
+# is purely a latency improvement, never a dependency for correctness).
+SESSIONS_NOTIFY_SOCKET = os.path.expanduser("~/.claude/pet/notify-sessions.sock")
+REQUESTS_NOTIFY_SOCKET = os.path.expanduser("~/.claude/pet/notify-requests.sock")
+
+
+def notify(socket_path):
+    """Best-effort, fire-and-forget wake-up ping. Must never raise, block
+    noticeably, or become something the hook's own correctness depends on -
+    if the app isn't running, hasn't created the socket yet, or anything
+    else goes wrong, this silently does nothing and the existing
+    FSEvent-watcher + poll-timer path in the app still catches the change on
+    its own, just potentially a little later.
+    """
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(0.05)
+            sock.sendto(b"changed", socket_path)
+    except OSError:
+        pass
 
 # How long to block waiting for an Allow/Deny click before giving up and
 # falling back to Claude Code's normal permission prompt. Keep comfortably
@@ -307,6 +332,7 @@ def await_permission_decision(session_id, session_file, cwd, tool, summary):
     }
     request_path = os.path.join(REQUESTS_DIR, f"{request_id}.json")
     atomic_write_json(request_path, request)
+    notify(REQUESTS_NOTIFY_SOCKET)
 
     response_path = os.path.join(RESPONSES_DIR, f"{request_id}.json")
     deadline = time.time() + AWAIT_PERMISSION_TIMEOUT_SECONDS
@@ -340,6 +366,7 @@ def await_permission_decision(session_id, session_file, cwd, tool, summary):
             existing["state"] = "running"
             existing["ts"] = time.time()
             atomic_write_json(session_file, existing)
+            notify(SESSIONS_NOTIFY_SOCKET)
         return
 
     print(json.dumps({
@@ -367,6 +394,7 @@ def main():
     if state == "session-end":
         try:
             os.remove(session_file)
+            notify(SESSIONS_NOTIFY_SOCKET)
         except FileNotFoundError:
             pass
         return
@@ -390,6 +418,7 @@ def main():
             "claude_pid": claude_pid,
         }
         atomic_write_json(session_file, status)
+        notify(SESSIONS_NOTIFY_SOCKET)
 
         await_permission_decision(session_id, session_file, payload.get("cwd"), tool, summary)
         return
@@ -444,6 +473,7 @@ def main():
     }
 
     atomic_write_json(session_file, status)
+    notify(SESSIONS_NOTIFY_SOCKET)
 
 
 if __name__ == "__main__":

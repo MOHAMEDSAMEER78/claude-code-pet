@@ -19,6 +19,10 @@ final class PermissionRequestStore: ObservableObject {
     private let responsesDir: URL
     private var dirWatcher: DispatchSourceFileSystemObject?
     private var pollTimer: Timer?
+    /// Push path: pet-hook.py pings this the instant it writes a request
+    /// file, so a new permission bubble usually shows immediately rather
+    /// than waiting on FSEvent or the poll-timer fallback below.
+    private let notifier = IPCNotifier(socketName: "notify-requests.sock")
 
     /// Requests older than this are assumed to have already timed out on
     /// the hook side; stop showing their bubble. Kept just a bit above
@@ -50,7 +54,13 @@ final class PermissionRequestStore: ObservableObject {
         source.resume()
         dirWatcher = source
 
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        notifier.start { [weak self] in self?.refresh() }
+
+        // Last-resort fallback (missed socket ping + missed FSEvent) and
+        // what actually drives clearing a stale/timed-out bubble by
+        // wall-clock time alone. Relaxed from 2s now that the socket ping
+        // is the primary push path for "a new request appeared."
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.refresh()
         }
     }

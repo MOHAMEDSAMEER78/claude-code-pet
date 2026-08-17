@@ -73,14 +73,16 @@ EOF
 
 ```
 Claude Code hook event  →  pet-hook.py  →  ~/.claude/pet/sessions/<session_id>.json
-                                                        │
-                                     DispatchSource + 5s poll fallback
-                                                        ▼
-                                              SessionStore (Swift)
-                                                        ▼
-                                          NSPanel(s) hosting SwiftUI
+                                    │                    │
+                          Unix socket ping     DispatchSource (FSEvent) + 20s poll fallback
+                                    └──────────┬─────────┘
+                                               ▼
+                                        SessionStore (Swift)
+                                               ▼
+                                     NSPanel(s) hosting SwiftUI
 ```
 
+- **Push, not poll, for the common case**: after every session/request file write, `pet-hook.py` also fires a best-effort datagram at a local Unix socket (`~/.claude/pet/notify-{sessions,requests}.sock`) the app is listening on, so the UI usually updates within milliseconds instead of waiting on the FSEvent watcher or the poll timer. The socket ping is purely additive - if it fails for any reason (old `pet-hook.py`, socket not up yet), the existing FSEvent watcher and a much-slower poll timer still catch the change on their own. This can never be the only thing standing between a permission request and it being shown - it's strictly a latency improvement layered on top of the file-based state.
 - **Hooks used**: `SessionStart`/`SessionEnd` (register/deregister), `UserPromptSubmit`/`PreToolUse`/`PostToolUse` (running), `Notification(permission_prompt)` + `PermissionRequest` (waiting), `Stop`/`SubagentStop` (review), `PostToolUseFailure`/`StopFailure` (failed), `TaskCreated`/`TaskCompleted` (progress ring counter).
 - **Why `Stop`→decay instead of `idle_prompt`**: Claude Code's `idle_prompt` notification is documented as unreliable (fires after every response, or not at all, depending on version). Instead, `Stop` sets a "review" state that decays to idle after 20 seconds locally in the app — no dependency on that heuristic.
 - **`PermissionRequest` is used for the interactive bubble, not `PreToolUse`**: `PreToolUse` fires on *every* tool call regardless of whether your `permissions.defaultMode` auto-approves it. `PermissionRequest` only fires when Claude Code actually needs a human decision, so the blocking hook (see below) never adds latency to auto-approved tool calls.

@@ -39,6 +39,10 @@ final class SessionStore: ObservableObject {
     let sessionEnded = PassthroughSubject<EffectiveSession, Never>()
 
     private var lastStateBySession: [String: PetState] = [:]
+    /// Push path: pet-hook.py pings this the instant it writes/removes a
+    /// session file, so refresh() usually runs immediately rather than
+    /// waiting on FSEvent or the poll-timer fallback below.
+    private let notifier = IPCNotifier(socketName: "notify-sessions.sock")
 
     init() {
         let base = FileManager.default.homeDirectoryForCurrentUser
@@ -62,8 +66,13 @@ final class SessionStore: ObservableObject {
         source.resume()
         self.dirWatcher = source
 
-        // Poll fallback in case an FSEvent is missed or the watched fd goes stale.
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        notifier.start { [weak self] in self?.refresh() }
+
+        // Last-resort fallback if both the socket ping and the FSEvent watch
+        // somehow miss a change (e.g. an old pet-hook.py version with
+        // neither). Relaxed from 5s now that the socket ping above is the
+        // primary push path - this only needs to catch the rare double-miss.
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             self?.refresh()
         }
         // Drives the review->idle decay and stale-file cleanup even with no fs activity.
