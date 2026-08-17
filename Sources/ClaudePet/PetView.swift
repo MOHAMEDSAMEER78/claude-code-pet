@@ -48,6 +48,7 @@ private extension View {
 /// it's done, matching the states the ClaudePet hook already tracks.
 private struct StatusBadge: View {
     let state: PetState
+    @State private var blink = false
 
     var body: some View {
         ZStack {
@@ -58,15 +59,33 @@ private struct StatusBadge: View {
             content
         }
         .frame(width: 18, height: 18)
+        .onAppear {
+            if state == .running { startBlinking() }
+        }
+        .onChange(of: state) { newState in
+            if newState == .running {
+                startBlinking()
+            } else {
+                blink = false
+            }
+        }
+    }
+
+    private func startBlinking() {
+        blink = false
+        withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+            blink = true
+        }
     }
 
     @ViewBuilder
     private var content: some View {
         switch state {
         case .running:
-            ProgressView()
-                .controlSize(.mini)
-                .scaleEffect(0.6)
+            Circle()
+                .fill(Color.yellow)
+                .frame(width: 9, height: 9)
+                .opacity(blink ? 0.25 : 1)
         case .review:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 12))
