@@ -145,6 +145,9 @@
   h2 { font-family: var(--mono); font-size: clamp(22px, 2.6vw, 30px); letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; }
   .section-lede { color: var(--text-2); margin: 0 0 8px; max-width: 60ch; }
 
+  .version-tag { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+  .version-tag a { color: var(--accent); text-decoration: none; }
+  .version-tag a:hover { text-decoration: underline; }
   .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 30px; }
   .feature { border: 1px solid var(--border); background: var(--surface); border-radius: 16px; padding: 20px; }
   .feature .icon { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
@@ -208,6 +211,7 @@
             View on GitHub
           </a>
         </div>
+        <p class="version-tag" style="margin-top:14px;">Now at <a href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/tag/v1.1.0">v1.1.0</a> — Preferences, a command palette, session stats, and notification-based permission alerts.</p>
       </div>
       <div class="mock-stage">
         <div class="mock-desktop">
@@ -249,17 +253,27 @@
       <div class="feature">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
         <h3>Reacts to your session</h3>
-        <p>Idle, working, needs permission, ready for review, or failed — each with its own pose and a plain-English status line.</p>
+        <p>Idle, working, needs permission, ready for review, or failed — each with its own pose, a color-matched menu-bar icon, and a plain-English status line.</p>
       </div>
       <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
-        <h3>Inline permission bubble</h3>
-        <p>Allow or Deny right on the pet when Claude Code actually needs a decision — never on every auto-approved tool call.</p>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+        <h3>Permission notifications</h3>
+        <p>A native macOS notification the instant Claude Code needs a decision — rare under auto mode, but impossible to miss when it happens. ClaudePet never decides for you.</p>
       </div>
       <div class="feature">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></div>
         <h3>Activity tray</h3>
         <p>Every active session, ranked by urgency. Click a row to jump straight to that terminal or IDE window.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <h3>Session command palette</h3>
+        <p>⌘⇧K opens a Spotlight-style fuzzy jump to any active session by project name — built for when you've got more than two or three going.</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20v-6M12 14l-4-4M12 14l4-4M6 4h12"/></svg></div>
+        <h3>Session stats &amp; spend</h3>
+        <p>Sessions today/this week, tasks completed, and an estimated token/cost readout — all local, all from your own machine, never uploaded anywhere.</p>
       </div>
       <div class="feature">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/></svg></div>
@@ -268,13 +282,18 @@
       </div>
       <div class="feature">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h.01M15 9h.01M9 15h6"/></svg></div>
-        <h3>Custom pets</h3>
-        <p>Drop in your own spritesheet, or reuse real Codex-format pets — same manifest, same conventions.</p>
+        <h3>Pet gallery</h3>
+        <p>Browse and preview every installed pet before applying it — drop in your own spritesheet, or reuse real Codex-format pets, same manifest and conventions.</p>
       </div>
       <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M4 6h10M4 18h10"/></svg></div>
-        <h3>Reduce Motion aware</h3>
-        <p>Freezes on a still frame instead of animating when your system's Reduce Motion setting is on.</p>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h3>One-click hook setup</h3>
+        <p>An in-app installer wires the hooks into your Claude Code settings for you — plus a health check for "the pet just isn't reacting."</p>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+        <h3>Launches with your Mac</h3>
+        <p>Turn on Launch at Login from Preferences and it's just always there — no need to remember to open it.</p>
       </div>
     </div>
   </section>
@@ -288,14 +307,11 @@
       <div>
         <pre class="code"><span class="c"># 1. Download and open the app</span>
 open ClaudePet.dmg
-<span class="c"># drag ClaudePet.app to Applications</span>
+<span class="c"># drag ClaudePet.app to Applications, then launch it</span>
 
-<span class="c"># 2. Wire up the hooks (see README)</span>
-cp ~/.claude/settings.json ~/.claude/settings.json.bak
-<span class="c"># merge hooks/settings-snippet.json into it</span>
-
-<span class="c"># 3. Launch it</span>
-open /Applications/ClaudePet.app</pre>
+<span class="c"># 2. Wire up the hooks</span>
+<span class="c"># Menu bar -&gt; "Hook Setup &amp; Diagnostics..." -&gt; Install</span>
+<span class="c"># (backs up settings.json for you automatically)</span></pre>
         <p class="install-note">Ad-hoc signed, not notarized — right-click → Open on first launch, or run <code>xattr -dr com.apple.quarantine</code> on the app.</p>
       </div>
       <div>
