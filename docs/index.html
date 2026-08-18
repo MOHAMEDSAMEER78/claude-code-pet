@@ -8,39 +8,50 @@
 <meta property="og:title" content="ClaudePet — a desktop pet for Claude Code">
 <meta property="og:description" content="A floating macOS companion that reacts to your Claude Code sessions in real time. Free and open source.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236b8cfa'/%3E%3Ccircle cx='23' cy='30' r='4.5' fill='%2312131a'/%3E%3Ccircle cx='41' cy='30' r='4.5' fill='%2312131a'/%3E%3Crect x='20' y='42' width='24' height='4' rx='2' fill='%2312131a'/%3E%3C/svg%3E">
+<meta property="og:image" content="https://mohamedsameer78.github.io/claudepet/assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <style>
   :root {
-    --bg: #f5f6fb;
+    /* Palette lifted directly from the app icon: a coral-to-terracotta
+       gradient (#e78e72 -> #d57054) with a cream pawprint (#fbf5eb). */
+    --bg: #faf5ee;
     --surface: #ffffff;
-    --surface-2: #eef0f8;
-    --border: rgba(18, 19, 26, 0.10);
-    --text: #14151d;
-    --text-2: rgba(20, 21, 29, 0.64);
-    --accent: #4453c8;
+    --surface-2: #f4ece1;
+    --border: rgba(45, 26, 16, 0.10);
+    --text: #271811;
+    --text-2: rgba(39, 24, 17, 0.62);
+    --accent: #b34a2d;
     --accent-ink: #ffffff;
-    --accent-soft: #e7e9fb;
-    --code-bg: #14151d;
-    --code-text: #dbe2ff;
-    --code-text-2: rgba(219, 226, 255, 0.55);
-    --shadow: 0 1px 2px rgba(20,21,40,0.04), 0 12px 32px -16px rgba(20,21,40,0.18);
+    --accent-soft: #f6e0d3;
+    --icon-from: #e78e72;
+    --icon-to: #d57054;
+    --icon-cream: #fbf5eb;
+    --code-bg: #271711;
+    --code-text: #f8e2cd;
+    --code-text-2: rgba(248, 226, 205, 0.55);
+    --shadow: 0 1px 2px rgba(40,20,10,0.05), 0 12px 32px -16px rgba(40,20,10,0.20);
     --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
     --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0b0c10;
-      --surface: #15161d;
-      --surface-2: #1b1c25;
-      --border: rgba(255,255,255,0.09);
-      --text: #f1f2f8;
-      --text-2: rgba(241,242,248,0.62);
-      --accent: #8296fb;
-      --accent-ink: #10111a;
-      --accent-soft: rgba(130,150,251,0.14);
-      --code-bg: #0a0a0d;
-      --code-text: #d7e0ff;
-      --code-text-2: rgba(215,224,255,0.5);
+      --bg: #150f0b;
+      --surface: #1e1611;
+      --surface-2: #261c15;
+      --border: rgba(255, 232, 217, 0.09);
+      --text: #f7ece1;
+      --text-2: rgba(247, 236, 225, 0.62);
+      --accent: #ef8f6b;
+      --accent-ink: #1a1109;
+      --accent-soft: rgba(239, 143, 107, 0.16);
+      --icon-from: #e78e72;
+      --icon-to: #d57054;
+      --icon-cream: #fbf5eb;
+      --code-bg: #100b08;
+      --code-text: #fbdec4;
+      --code-text-2: rgba(251, 222, 196, 0.5);
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 20px 48px -20px rgba(0,0,0,0.6);
     }
   }
@@ -107,34 +118,34 @@
   .mock-stage { display: flex; justify-content: center; }
   .mock-desktop {
     width: 100%; max-width: 340px; border-radius: 20px;
-    background: linear-gradient(160deg, #1b2036, #0c0e18);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(160deg, #241a14, #120c09);
+    border: 1px solid rgba(255,232,217,0.08);
     padding: 26px 22px 30px; box-shadow: var(--shadow);
     display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
   }
   .mock-pet {
     width: 74px; height: 78px; border-radius: 22px;
-    background: linear-gradient(160deg, #7c93f6, #4453c8);
-    position: relative; box-shadow: 0 10px 22px -10px rgba(68,83,200,0.7);
+    background: linear-gradient(160deg, var(--icon-from), var(--icon-to));
+    position: relative; box-shadow: 0 10px 22px -10px rgba(197,88,58,0.6);
   }
-  .mock-pet .eye { position: absolute; top: 30px; width: 9px; height: 9px; border-radius: 50%; background: #10121c; }
+  .mock-pet .eye { position: absolute; top: 30px; width: 9px; height: 9px; border-radius: 50%; background: #2c180f; }
   .mock-pet .eye.l { left: 18px; } .mock-pet .eye.r { right: 18px; }
-  .mock-pet .mouth { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; color: #10121c; font-weight: 700; letter-spacing: -1px; }
+  .mock-pet .mouth { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; color: #2c180f; font-weight: 700; letter-spacing: -1px; }
   .mock-card {
-    width: 100%; background: #17181f; border: 1px solid rgba(255,255,255,0.1);
+    width: 100%; background: #201712; border: 1px solid rgba(255,232,217,0.1);
     border-radius: 16px; padding: 13px 14px; position: relative;
     box-shadow: 0 14px 30px -18px rgba(0,0,0,0.6);
   }
   .mock-card .badge {
     position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
-    background: #17181f; border: 1px solid rgba(255,255,255,0.12);
+    background: #201712; border: 1px solid rgba(255,232,217,0.12);
     display: flex; align-items: center; justify-content: center;
   }
-  .mock-card .badge span { width: 9px; height: 9px; border-radius: 50%; border: 2px solid rgba(130,150,251,0.35); border-top-color: #8296fb; animation: spin 0.9s linear infinite; }
+  .mock-card .badge span { width: 9px; height: 9px; border-radius: 50%; border: 2px solid rgba(231,142,114,0.35); border-top-color: var(--icon-from); animation: spin 0.9s linear infinite; }
   @media (prefers-reduced-motion: reduce) { .mock-card .badge span { animation: none; } }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .mock-card .t { font-size: 13px; font-weight: 700; color: #f1f2f8; margin: 0 0 4px; }
-  .mock-card .m { font-size: 11.5px; color: rgba(241,242,248,0.6); font-family: var(--mono); }
+  .mock-card .t { font-size: 13px; font-weight: 700; color: #f8ece0; margin: 0 0 4px; }
+  .mock-card .m { font-size: 11.5px; color: rgba(248,236,224,0.6); font-family: var(--mono); }
 
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 30px; }
   .step { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px 20px; box-shadow: var(--shadow); }
@@ -159,7 +170,7 @@
   pre.code {
     background: var(--code-bg); color: var(--code-text); border-radius: 14px;
     padding: 18px 18px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
-    overflow-x: auto; margin: 0; border: 1px solid rgba(255,255,255,0.06);
+    overflow-x: auto; margin: 0; border: 1px solid rgba(255,232,217,0.07);
   }
   pre.code .c { color: var(--code-text-2); }
   .install-note { font-size: 13.5px; color: var(--text-2); margin-top: 12px; }
