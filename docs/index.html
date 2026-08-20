@@ -80,7 +80,7 @@
     overflow-x: hidden;
   }
   a { color: inherit; }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
   ::selection { background: var(--accent-soft); }
 
   /* ---------- nav ---------- */
@@ -160,27 +160,37 @@
     background: radial-gradient(closest-side, var(--demo-glow, var(--s-idle)), transparent 70%);
     opacity: 0.22; filter: blur(10px); transition: background 0.6s ease;
   }
-  .demo-sprite {
-    font-size: 52px; line-height: 1; position: relative; z-index: 1;
-    animation: bob 2.6s ease-in-out infinite;
-    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.35));
+  .shot-frame {
+    position: relative; width: 100%; aspect-ratio: 600 / 680; z-index: 1;
+    border-radius: 16px; overflow: hidden; background: #1b140f;
+    box-shadow: 0 14px 30px -18px rgba(0,0,0,0.6);
   }
-  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-  @media (prefers-reduced-motion: reduce) { .demo-sprite { animation: none; } }
+  .shot-img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    opacity: 0; transition: opacity 0.7s ease;
+  }
+  .shot-img.is-active { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .shot-img { transition: none; } }
   .demo-pill {
     font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
     color: var(--demo-glow, var(--s-idle)); background: color-mix(in srgb, var(--demo-glow, var(--s-idle)) 16%, transparent);
     border: 1px solid color-mix(in srgb, var(--demo-glow, var(--s-idle)) 40%, transparent);
     padding: 4px 10px; border-radius: 999px; z-index: 1; transition: color 0.5s ease, background 0.5s ease, border-color 0.5s ease;
   }
-  .demo-card-inner {
-    width: 100%; background: #1b140f; border: 1px solid rgba(255,232,217,0.1);
-    border-radius: 14px; padding: 12px 14px; position: relative; z-index: 1;
-    box-shadow: 0 14px 30px -18px rgba(0,0,0,0.6); min-height: 56px;
-  }
-  .demo-card-inner .t { font-size: 12.5px; font-weight: 700; color: #f8ece0; margin: 0 0 4px; }
-  .demo-card-inner .m { font-size: 11px; color: rgba(248,236,224,0.62); font-family: var(--mono); }
-  .demo-caption { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); text-align: center; margin-top: 10px; }
+  .demo-caption { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); text-align: center; margin-top: 10px; max-width: 30ch; }
+
+  /* ---------- state machine grid (real screenshots) ---------- */
+  .state-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 34px; }
+  .state-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+  .state-card .bar { height: 4px; }
+  .state-card .shot { aspect-ratio: 600 / 680; background: #1b140f; }
+  .state-card .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .state-card .meta { padding: 14px 16px 16px; }
+  .state-card h3 { font-size: 14.5px; margin: 0 0 4px; }
+  .state-card .tag2 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); margin: 0; }
+  .state-note { font-size: 13.5px; color: var(--text-2); margin-top: 22px; }
+  @media (max-width: 860px) { .state-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .state-grid { grid-template-columns: 1fr; } }
 
   /* ---------- state legend ---------- */
   .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin-top: 44px; padding-top: 34px; border-top: 1px solid var(--border); }
@@ -198,7 +208,7 @@
   .term-bar span:nth-child(2) { background: #dbab3f; }
   .term-bar span:nth-child(3) { background: #3fbf82; }
   .term-title { margin-left: 8px; font-family: var(--mono); font-size: 11.5px; color: var(--code-text-2); }
-  .term-body { padding: 18px 18px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--code-text); overflow-x: auto; }
+  .term-body { padding: 18px 18px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--code-text); overflow-x: auto; white-space: pre-wrap; }
   .term-body .c { color: var(--code-text-2); }
   .term-body .k { color: color-mix(in srgb, var(--icon-from) 88%, white 4%); }
   .term-body .v { color: var(--code-text); }
@@ -254,7 +264,7 @@
     margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border);
     display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px;
   }
-  .disclaimer { font-size: 12px; color: var(--text-3); max-width: 60ch; margin: 0; }
+  .disclaimer { font-size: 12px; color: var(--text-3); margin: 0; white-space: nowrap; }
   .footer-prompt {
     font-family: var(--mono); font-size: 12.5px; color: var(--text-2);
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
@@ -267,6 +277,7 @@
   @media (max-width: 720px) {
     .footer-grid { grid-template-columns: 1fr 1fr; }
     .footer-bottom { flex-direction: column-reverse; align-items: flex-start; }
+    .disclaimer { white-space: normal; }
   }
 
   @media (max-width: 860px) {
@@ -286,6 +297,7 @@
       ClaudePet
     </a>
     <nav class="nav-links">
+      <a class="ghost" href="#states">States</a>
       <a class="ghost" href="#how">How it works</a>
       <a class="ghost" href="#features">Features</a>
       <a class="ghost" href="#install">Install</a>
@@ -316,12 +328,14 @@
       </div>
       <div class="demo-stage">
         <div class="demo-card" id="demo-card">
-          <div class="demo-sprite" id="demo-sprite">😴</div>
-          <div class="demo-pill" id="demo-pill">IDLE</div>
-          <div class="demo-card-inner">
-            <p class="t" id="demo-title">Claude</p>
-            <p class="m" id="demo-text">Waiting for your next message</p>
+          <div class="shot-frame">
+            <img class="shot-img is-active" src="assets/screenshots/state-running.jpg" alt="ClaudePet showing a live tool call and task progress ring">
+            <img class="shot-img" src="assets/screenshots/state-review.jpg" alt="ClaudePet showing a done, ready-for-review state">
+            <img class="shot-img" src="assets/screenshots/state-waiting.jpg" alt="ClaudePet waiting for a permission decision">
+            <img class="shot-img" src="assets/screenshots/state-failed.jpg" alt="ClaudePet reacting to a failed build">
           </div>
+          <div class="demo-pill" id="demo-pill">WORKING</div>
+          <p class="demo-caption">Real, unedited — captured live from an actual session.</p>
         </div>
       </div>
     </div>
@@ -333,6 +347,36 @@
       <div class="legend-item"><span class="dot" style="background:var(--s-review)"></span>Ready for review</div>
       <div class="legend-item"><span class="dot" style="background:var(--s-failed)"></span>Failed</div>
     </div>
+  </section>
+
+  <section id="states" class="wrap">
+    <div class="eyebrow reveal"><span class="dot"></span>State machine</div>
+    <h2 class="reveal">Five moods. One glance.</h2>
+    <p class="section-lede reveal">Real, unedited captures — the pet reacting live to an actual Claude Code session, not mockups.</p>
+
+    <div class="state-grid reveal">
+      <div class="state-card">
+        <div class="bar" style="background:var(--s-running)"></div>
+        <div class="shot"><img src="assets/screenshots/state-running.jpg" alt="ClaudePet showing a live tool call and task progress ring" loading="lazy"></div>
+        <div class="meta"><h3>Working</h3><p class="tag2">PreToolUse / PostToolUse</p></div>
+      </div>
+      <div class="state-card">
+        <div class="bar" style="background:var(--s-review)"></div>
+        <div class="shot"><img src="assets/screenshots/state-review.jpg" alt="ClaudePet showing a done, ready-for-review state" loading="lazy"></div>
+        <div class="meta"><h3>Ready for review</h3><p class="tag2">Stop hook · decays in 20s</p></div>
+      </div>
+      <div class="state-card">
+        <div class="bar" style="background:var(--s-waiting)"></div>
+        <div class="shot"><img src="assets/screenshots/state-waiting.jpg" alt="ClaudePet waiting for a permission decision" loading="lazy"></div>
+        <div class="meta"><h3>Needs you</h3><p class="tag2">PermissionRequest</p></div>
+      </div>
+      <div class="state-card">
+        <div class="bar" style="background:var(--s-failed)"></div>
+        <div class="shot"><img src="assets/screenshots/state-failed.jpg" alt="ClaudePet reacting to a failed build" loading="lazy"></div>
+        <div class="meta"><h3>Failed</h3><p class="tag2">PostToolUseFailure</p></div>
+      </div>
+    </div>
+    <p class="state-note reveal">Priority when several sessions are active: needs&#8209;you &gt; failed &gt; ready&#8209;for&#8209;review &gt; working &gt; idle — the same order the Activity Tray sorts by.</p>
   </section>
 
   <section id="how" class="wrap">
@@ -525,7 +569,7 @@ open ClaudePet.app</div>
   </div>
 
   <div class="footer-bottom">
-    <p class="disclaimer">ClaudePet is an independent, community-built project. It is not affiliated with or endorsed by Anthropic or OpenAI. "Claude" and "Codex" are trademarks of their respective owners, referenced here only to describe compatibility and inspiration. Free to download and use.</p>
+    <p class="disclaimer">Independent project, not affiliated with Anthropic or OpenAI. "Claude" and "Codex" are trademarks of their respective owners.</p>
     <div class="footer-prompt"><span class="p">$</span> open ClaudePet.app<span class="cursor2" aria-hidden="true"></span></div>
   </div>
 </footer>
@@ -535,30 +579,25 @@ open ClaudePet.app</div>
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var states = [
-    { css: '--s-idle', emoji: '😴', pill: 'IDLE', title: 'Claude', text: 'Waiting for your next message' },
-    { css: '--s-running', emoji: '🏃', pill: 'WORKING', title: 'Fix login redirect bug', text: 'Editing AuthController.swift' },
-    { css: '--s-waiting', emoji: '🙋', pill: 'NEEDS PERMISSION', title: 'Fix login redirect bug', text: 'Needs permission: running `rm -rf tmp/`' },
-    { css: '--s-review', emoji: '✅', pill: 'READY FOR REVIEW', title: 'Fix login redirect bug', text: "Done - ready for your review" },
-    { css: '--s-failed', emoji: '💥', pill: 'FAILED', title: 'Fix login redirect bug', text: 'Something went wrong' }
+    { css: '--s-running', pill: 'WORKING' },
+    { css: '--s-review', pill: 'READY FOR REVIEW' },
+    { css: '--s-waiting', pill: 'NEEDS PERMISSION' },
+    { css: '--s-failed', pill: 'FAILED' }
   ];
 
   var card = document.getElementById('demo-card');
-  var sprite = document.getElementById('demo-sprite');
   var pill = document.getElementById('demo-pill');
-  var title = document.getElementById('demo-title');
-  var text = document.getElementById('demo-text');
+  var shots = card ? card.querySelectorAll('.shot-img') : [];
 
-  if (card && !reduceMotion) {
+  if (card && shots.length && !reduceMotion) {
     var i = 0;
     setInterval(function () {
       i = (i + 1) % states.length;
       var s = states[i];
       card.style.setProperty('--demo-glow', 'var(' + s.css + ')');
-      sprite.textContent = s.emoji;
       pill.textContent = s.pill;
-      title.textContent = s.title;
-      text.textContent = s.text;
-    }, 2600);
+      shots.forEach(function (img, idx) { img.classList.toggle('is-active', idx === i); });
+    }, 2800);
   }
 
   if ('IntersectionObserver' in window) {
