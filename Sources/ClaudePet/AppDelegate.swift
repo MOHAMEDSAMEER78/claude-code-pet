@@ -2,10 +2,19 @@ import AppKit
 import SwiftUI
 import Combine
 import Carbon.HIToolbox
+import Sparkle
 import ClaudePetCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    /// Started eagerly (`startingUpdater: true`) so background update checks
+    /// begin at launch; the app stays ad-hoc signed/non-notarized, so this
+    /// only smooths *subsequent* updates - Gatekeeper's first-run warning is
+    /// unaffected. Sparkle verifies downloaded update packages against its
+    /// own EdDSA keypair (SUPublicEDKey in Info.plist), not code signing.
+    private lazy var updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
+    )
     private var panel: PetPanel?
     private var hotKeyManager: HotKeyManager?
     private var paletteHotKeyManager: HotKeyManager?
@@ -165,6 +174,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Session Stats…", action: #selector(showStats), keyEquivalent: "")
         menu.addItem(withTitle: "Hook Setup & Diagnostics…", action: #selector(showHookSetup), keyEquivalent: "")
         menu.addItem(withTitle: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Claude Pet", action: #selector(quit), keyEquivalent: "q")
         for menuItem in menu.items { menuItem.target = self }
@@ -368,6 +379,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func quit() {

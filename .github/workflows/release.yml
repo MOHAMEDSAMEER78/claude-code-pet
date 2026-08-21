@@ -1,0 +1,83 @@
+name: Release
+
+# Builds a versioned ClaudePet.app.zip and publishes it to a GitHub Release
+# whenever a v* tag is pushed. Doesn't sign/notarize the bundle - it stays
+# ad-hoc signed like a local build_app.sh build, so Gatekeeper still shows
+# the standard "unidentified developer" warning on first install.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build app bundle
+        run: ./build_app.sh release
+
+      - name: Read version from Info.plist
+        id: version
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Sources/ClaudePet/Info.plist)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches app version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$TAG_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match CFBundleShortVersionString ${{ steps.version.outputs.version }} - bump Info.plist first."
+            exit 1
+          fi
+
+      - name: Zip app bundle
+        run: |
+          mkdir -p release-archives
+          ditto -c -k --sequesterRsrc --keepParent ClaudePet.app "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip"
+
+      - name: Compute checksum
+        run: shasum -a 256 "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" > "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip
+            release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256
+          generate_release_notes: true
+
+      # Sparkle appcast - only runs once SPARKLE_PRIVATE_KEY is set (repo
+      # Settings > Secrets and variables > Actions); skipped otherwise so
+      # tagging a release doesn't hard-fail before that one-time setup step.
+      - name: Resolve Sparkle tools
+        if: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+        run: swift package resolve
+
+      - name: Generate and sign appcast
+        if: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_ed_key
+          GENERATE_APPCAST=$(find .build/checkouts/Sparkle -name generate_appcast -perm +111 | head -1)
+          "$GENERATE_APPCAST" --ed-key-file /tmp/sparkle_ed_key \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/" \
+            release-archives
+          rm -f /tmp/sparkle_ed_key
+          mkdir -p docs
+          cp release-archives/appcast.xml docs/appcast.xml
+
+      - name: Commit appcast to docs/
+        if: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast.xml
+          git diff --cached --quiet || git commit -m "Update appcast.xml for ${{ github.ref_name }}"
+          git push origin HEAD:main
