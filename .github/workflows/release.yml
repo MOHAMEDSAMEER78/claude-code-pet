@@ -83,7 +83,7 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_ed_key
-          GENERATE_APPCAST=$(find .build/checkouts/Sparkle -name generate_appcast -perm +111 | head -1)
+          GENERATE_APPCAST=$(find .build/checkouts/Sparkle -type f -name generate_appcast -perm +111 | head -1)
           "$GENERATE_APPCAST" --ed-key-file /tmp/sparkle_ed_key \
             --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/" \
             release-archives
