@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// A local-only activity summary drawn from SessionHistoryStore. Deliberately
-/// doesn't show "time worked" - the hook payloads give us a last-write
-/// timestamp per session, not a trustworthy session-start time, so showing a
-/// duration would mean making numbers up.
+/// A local-only activity summary drawn from SessionHistoryStore. "Time
+/// worked" only counts sessions whose file carried a started_ts (sessions
+/// recorded before that field existed contribute nothing rather than a
+/// guess), so it can under-count until older entries age out of the 7-day
+/// window.
 struct StatsView: View {
     let stats: SessionHistoryStore.Stats
     /// Currently-active session ids, so we can show a live "what am I
@@ -29,6 +30,8 @@ struct StatsView: View {
                 stat("Sessions today", "\(stats.sessionsToday)")
                 stat("Sessions this week", "\(stats.sessionsThisWeek)")
                 stat("Tasks completed (7d)", "\(stats.tasksCompletedThisWeek)")
+                stat("Time worked today", Self.formatDuration(stats.secondsWorkedToday))
+                stat("Time worked (7d)", Self.formatDuration(stats.secondsWorkedThisWeek))
             }
 
             if !activeSessionIds.isEmpty {
@@ -53,6 +56,14 @@ struct StatsView: View {
             }.value
             activeSpendUSD = total
         }
+    }
+
+    private static func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = Int(seconds) / 60
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(minutes)m"
     }
 
     private func stat(_ label: String, _ value: String) -> some View {

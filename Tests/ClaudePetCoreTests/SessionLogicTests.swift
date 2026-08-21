@@ -15,7 +15,7 @@ struct SessionLogicTests {
         SessionStatus(
             sessionId: id, state: state, cwd: cwd, tool: tool, summary: summary,
             action: action, ts: ts, terminalPid: nil, terminalApp: nil, tty: nil,
-            tasksDone: nil, tasksTotal: nil, title: nil, claudePid: nil
+            tasksDone: nil, tasksTotal: nil, title: nil, claudePid: nil, startedTs: nil
         )
     }
 

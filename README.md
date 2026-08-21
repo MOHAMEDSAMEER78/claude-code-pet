@@ -127,9 +127,9 @@ Use the menu bar icon → **Next Pet** / **Use Emoji Pet** / **Reload Pets** / *
 - No first-party integration — this breaks if Anthropic changes hook payload shapes or event names.
 - `Notification`/permission-hook latency can be a couple of seconds in some Claude Code versions.
 - Click-to-focus and kill-session both rely on process-tree/command-line heuristics to find the right terminal/process; they degrade gracefully (button does nothing / is disabled) rather than acting on a guess when the heuristic can't resolve.
-- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh`, fine for running on your own Mac, not for handing to someone else without re-signing. No auto-update mechanism either; a new build means re-running `build_app.sh`.
-- Session stats deliberately don't show "time worked" — the hook payloads give a last-write timestamp per session, not a trustworthy session-start time, so a duration would mean making a number up.
+- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh` (or by the release CI job), fine for running on your own Mac, not for handing to someone else without re-signing. Sparkle auto-update covers checking/downloading newer releases, but doesn't remove the first-run Gatekeeper "unidentified developer" warning, since that specifically requires notarization.
 - Token/cost estimates are read from Claude Code's own transcript files (`~/.claude/projects/*/<session_id>.jsonl`), which are an undocumented, internal format, not a stable API — this can break silently if that layout changes. Pricing is a hardcoded per-model table (standard tier) that will drift out of date; treat the numbers as a ballpark, not a bill.
+- **Platform support**: macOS 13+ only, by design — the app is built on AppKit (`NSPanel`, `NSStatusItem`), AppleScript (terminal-tab focusing), and `SMAppService` (Launch at Login) throughout, none of which have a Windows/Linux equivalent. There's no cross-platform version planned.
 
 ## Testing
 

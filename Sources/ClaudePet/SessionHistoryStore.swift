@@ -25,14 +25,16 @@ final class SessionHistoryStore: ObservableObject {
     }
 
     private func record(_ session: EffectiveSession) {
+        let endTs = Date().timeIntervalSince1970
         let entry = Entry(
-            ts: Date().timeIntervalSince1970,
+            ts: endTs,
             sessionId: session.sessionId,
             title: session.title,
             cwd: session.cwd,
             finalState: session.state.rawValue,
             tasksCompleted: session.tasksDone ?? 0,
-            tasksTotal: session.tasksTotal ?? 0
+            tasksTotal: session.tasksTotal ?? 0,
+            durationSeconds: session.startedTs.map { endTs - $0 }
         )
         guard let data = try? JSONEncoder().encode(entry), let line = String(data: data, encoding: .utf8) else { return }
         guard let handle = try? FileHandle(forWritingTo: fileURL) else {

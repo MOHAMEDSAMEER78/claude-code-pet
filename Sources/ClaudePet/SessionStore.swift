@@ -145,7 +145,8 @@ final class SessionStore: ObservableObject {
                 tasksDone: s.tasksDone,
                 tasksTotal: s.tasksTotal,
                 title: s.title,
-                claudePid: s.claudePid
+                claudePid: s.claudePid,
+                startedTs: s.startedTs
             )
         }.sorted { $0.ts < $1.ts }
 
@@ -197,7 +198,7 @@ final class SessionStore: ObservableObject {
             bubbleText: SessionLogic.bubbleText(for: status, state: state),
             cwd: status.cwd, terminalPid: status.terminalPid, terminalApp: status.terminalApp,
             tty: status.tty, ts: status.ts, tasksDone: status.tasksDone, tasksTotal: status.tasksTotal,
-            title: status.title, claudePid: status.claudePid
+            title: status.title, claudePid: status.claudePid, startedTs: status.startedTs
         ))
         lastStateBySession.removeValue(forKey: status.sessionId)
     }

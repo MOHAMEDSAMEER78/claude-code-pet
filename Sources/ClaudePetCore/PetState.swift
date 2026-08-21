@@ -67,6 +67,11 @@ public struct SessionStatus: Codable {
     public var tasksTotal: Int?
     public var title: String?
     public var claudePid: Int32?
+    /// Frozen to this session's first-ever write (see pet-hook.py) - absent
+    /// on session files written before this field existed, in which case
+    /// "time worked" for that session simply isn't computed rather than
+    /// guessed from a last-write timestamp.
+    public var startedTs: TimeInterval?
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -76,5 +81,6 @@ public struct SessionStatus: Codable {
         case tasksDone = "tasks_done"
         case tasksTotal = "tasks_total"
         case claudePid = "claude_pid"
+        case startedTs = "started_ts"
     }
 }

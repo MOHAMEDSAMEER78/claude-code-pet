@@ -351,6 +351,10 @@ def main():
     existing = load_existing_status(session_file)
     tasks_done, tasks_total = resolved_task_counts(payload, existing)
     title = resolved_title(payload, existing)
+    # Frozen to this session's first-ever write (like `title`) so "time
+    # worked" can be computed later as end_ts - started_ts, rather than
+    # guessing from a last-write timestamp the way earlier versions had to.
+    started_ts = existing.get("started_ts") or time.time()
 
     if state == "await-permission":
         tool, summary = summarize_tool(payload)
@@ -362,7 +366,7 @@ def main():
             "cwd": payload.get("cwd"), "tool": tool, "summary": summary, "action": action,
             "ts": time.time(), "terminal_pid": terminal_pid, "terminal_app": terminal_app,
             "tty": tty, "tasks_done": tasks_done, "tasks_total": tasks_total, "title": title,
-            "claude_pid": claude_pid, "schema": SCHEMA_VERSION,
+            "claude_pid": claude_pid, "schema": SCHEMA_VERSION, "started_ts": started_ts,
         }
         atomic_write_json(session_file, status)
         notify(SESSIONS_NOTIFY_SOCKET)
@@ -418,6 +422,7 @@ def main():
         "title": title,
         "claude_pid": claude_pid,
         "schema": SCHEMA_VERSION,
+        "started_ts": started_ts,
     }
 
     atomic_write_json(session_file, status)

@@ -15,11 +15,13 @@ public struct EffectiveSession: Identifiable {
     public var tasksTotal: Int?
     public var title: String?
     public var claudePid: Int32?
+    public var startedTs: TimeInterval?
 
     public init(
         sessionId: String, state: PetState, bubbleText: String, cwd: String?,
         terminalPid: Int32?, terminalApp: String?, tty: String?, ts: TimeInterval,
-        tasksDone: Int?, tasksTotal: Int?, title: String?, claudePid: Int32?
+        tasksDone: Int?, tasksTotal: Int?, title: String?, claudePid: Int32?,
+        startedTs: TimeInterval? = nil
     ) {
         self.sessionId = sessionId
         self.state = state
@@ -33,6 +35,7 @@ public struct EffectiveSession: Identifiable {
         self.tasksTotal = tasksTotal
         self.title = title
         self.claudePid = claudePid
+        self.startedTs = startedTs
     }
 }
 
