@@ -4,6 +4,12 @@ import PackageDescription
 let package = Package(
     name: "ClaudePet",
     platforms: [.macOS(.v13)],
+    dependencies: [
+        // Auto-update only - independent of Apple code signing/notarization.
+        // Sparkle verifies update packages with its own EdDSA keypair (see
+        // SUPublicEDKey in Info.plist), not Gatekeeper.
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
+    ],
     targets: [
         .target(
             name: "ClaudePetCore",
@@ -12,7 +18,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "ClaudePet",
-            dependencies: ["ClaudePetCore"],
+            dependencies: [
+                "ClaudePetCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/ClaudePet",
             // Keep the app in Swift 5 mode: it predates Swift 6 strict
             // concurrency checking and AppKit/SwiftUI call sites throughout

@@ -2,10 +2,19 @@ import AppKit
 import SwiftUI
 import Combine
 import Carbon.HIToolbox
+import Sparkle
 import ClaudePetCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    /// Started eagerly (`startingUpdater: true`) so background update checks
+    /// begin at launch; the app stays ad-hoc signed/non-notarized, so this
+    /// only smooths *subsequent* updates - Gatekeeper's first-run warning is
+    /// unaffected. Sparkle verifies downloaded update packages against its
+    /// own EdDSA keypair (SUPublicEDKey in Info.plist), not code signing.
+    private lazy var updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
+    )
     private var panel: PetPanel?
     private var hotKeyManager: HotKeyManager?
     private var paletteHotKeyManager: HotKeyManager?
@@ -166,6 +175,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Hook Setup & Diagnostics…", action: #selector(showHookSetup), keyEquivalent: "")
         menu.addItem(withTitle: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Claude Pet", action: #selector(quit), keyEquivalent: "q")
         for menuItem in menu.items { menuItem.target = self }
         item.menu = menu
@@ -231,11 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let tray = PetPanel(
                 rootView: ActivityTrayView(
                     store: store,
-                    identityFor: { [weak self] sessionId in
-                        guard let self else { return "Session" }
-                        let pool = PetIdentity.namePool(customPetDirs: self.library.availableDirs)
-                        return PetIdentity.name(for: sessionId, pool: pool)
-                    },
+                    identityFor: { [weak self] sessionId in self?.identityName(for: sessionId) ?? "Session" },
                     onSelect: { [weak self] session in
                         TerminalFocuser.focus(
                             terminalApp: session.terminalApp,
@@ -263,6 +270,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trayPanel?.animateOut()
     }
 
+    /// Shared by the tray and command palette: same pool, same key policy
+    /// (per-session by default, per-project when Group Pets By Project is on).
+    private func identityName(for sessionId: String) -> String {
+        let pool = PetIdentity.namePool(customPetDirs: library.availableDirs)
+        let cwd = store.sessions.first(where: { $0.sessionId == sessionId })?.cwd
+        let key = PetIdentity.identityKey(sessionId: sessionId, cwd: cwd, groupByProject: settings.groupPetsByProject)
+        return PetIdentity.name(for: key, pool: pool)
+    }
+
     @objc private func toggleWander() {
         animator.wanderEnabled.toggle()
         wanderMenuItem?.state = animator.wanderEnabled ? .on : .off
@@ -282,11 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if palettePanel == nil {
             let view = CommandPaletteView(
                 store: store,
-                identityFor: { [weak self] sessionId in
-                    guard let self else { return "Session" }
-                    let pool = PetIdentity.namePool(customPetDirs: self.library.availableDirs)
-                    return PetIdentity.name(for: sessionId, pool: pool)
-                },
+                identityFor: { [weak self] sessionId in self?.identityName(for: sessionId) ?? "Session" },
                 onSelect: { [weak self] session in
                     TerminalFocuser.focus(
                         terminalApp: session.terminalApp, terminalPid: session.terminalPid,
@@ -294,7 +306,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     )
                     self?.hideCommandPalette()
                 },
-                onCancel: { [weak self] in self?.hideCommandPalette() }
+                onCancel: { [weak self] in self?.hideCommandPalette() },
+                onHeightChange: { [weak self] height in self?.palettePanel?.resizeToFit(height: height) }
             )
             let p = CommandPalettePanel(rootView: view)
             paletteResignObserver = NotificationCenter.default.addObserver(
@@ -320,7 +333,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showStats() {
         showUtilityWindow(&statsWindow, title: "Session Stats") {
-            StatsView(stats: self.historyStore.loadStats(), activeSessionIds: self.store.sessions.map(\.sessionId))
+            StatsView(
+                stats: self.historyStore.loadStats(),
+                activeSessionIds: self.store.sessions.map(\.sessionId),
+                decodeWarning: self.store.lastDecodeWarning
+            )
         }
     }
 
@@ -364,6 +381,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func quit() {

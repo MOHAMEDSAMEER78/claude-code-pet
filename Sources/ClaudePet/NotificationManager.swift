@@ -22,7 +22,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func notifyPermissionNeeded(request: PermissionRequest) {
-        guard AppSettings.shared.notificationsEnabled, authorized else { return }
+        guard AppSettings.shared.notificationsEnabled, AppSettings.shared.notifyOnPermission, authorized else { return }
         let content = UNMutableNotificationContent()
         content.title = "Claude Code needs your permission"
         content.body = request.summary ?? request.tool.map { "Wants to use \($0)" } ?? "Waiting on a decision"
@@ -33,12 +33,30 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     func notifyStateChange(name: String, state: PetState, appIsActive: Bool) {
         guard AppSettings.shared.notificationsEnabled, authorized, !appIsActive else { return }
-        guard state == .failed || state == .review else { return }
+        guard isEnabled(for: state) else { return }
         let content = UNMutableNotificationContent()
         content.title = name
-        content.body = state == .failed ? "Something went wrong" : "Done - ready for your review"
+        content.body = body(for: state)
         content.sound = .default
         post(content, id: "state-\(name)-\(state.rawValue)-\(Int(Date().timeIntervalSince1970))")
+    }
+
+    private func isEnabled(for state: PetState) -> Bool {
+        switch state {
+        case .failed: return AppSettings.shared.notifyOnFailed
+        case .review: return AppSettings.shared.notifyOnReview
+        case .running: return AppSettings.shared.notifyOnRunning
+        case .waitingPermission, .idle: return false // permission has its own dedicated path above
+        }
+    }
+
+    private func body(for state: PetState) -> String {
+        switch state {
+        case .failed: return "Something went wrong"
+        case .review: return "Done - ready for your review"
+        case .running: return "Started working"
+        case .waitingPermission, .idle: return state.label
+        }
     }
 
     private func post(_ content: UNMutableNotificationContent, id: String) {

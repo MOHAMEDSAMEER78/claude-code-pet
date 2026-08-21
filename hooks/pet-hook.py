@@ -39,6 +39,13 @@ import uuid
 SESSIONS_DIR = os.path.expanduser("~/.claude/pet/sessions")
 REQUESTS_DIR = os.path.expanduser("~/.claude/pet/requests")
 
+# Bump whenever a session/request file's shape changes in a way an older
+# ClaudePet.app build couldn't understand (renamed/removed field, changed
+# meaning). The app checks this before decoding and skips-with-a-visible-
+# warning instead of silently vanishing the session, so this is the one
+# place to bump when making a breaking change here.
+SCHEMA_VERSION = 1
+
 # Datagram (connectionless) Unix sockets the app listens on, one per
 # directory it watches - pinged right after a write/removal in that
 # directory so the app refreshes immediately instead of waiting on its own
@@ -314,6 +321,7 @@ def notify_permission_needed(session_id, cwd, tool, summary):
         "tool": tool,
         "summary": summary,
         "ts": time.time(),
+        "schema": SCHEMA_VERSION,
     }
     atomic_write_json(os.path.join(REQUESTS_DIR, f"{request_id}.json"), request)
     notify(REQUESTS_NOTIFY_SOCKET)
@@ -343,6 +351,10 @@ def main():
     existing = load_existing_status(session_file)
     tasks_done, tasks_total = resolved_task_counts(payload, existing)
     title = resolved_title(payload, existing)
+    # Frozen to this session's first-ever write (like `title`) so "time
+    # worked" can be computed later as end_ts - started_ts, rather than
+    # guessing from a last-write timestamp the way earlier versions had to.
+    started_ts = existing.get("started_ts") or time.time()
 
     if state == "await-permission":
         tool, summary = summarize_tool(payload)
@@ -354,7 +366,7 @@ def main():
             "cwd": payload.get("cwd"), "tool": tool, "summary": summary, "action": action,
             "ts": time.time(), "terminal_pid": terminal_pid, "terminal_app": terminal_app,
             "tty": tty, "tasks_done": tasks_done, "tasks_total": tasks_total, "title": title,
-            "claude_pid": claude_pid,
+            "claude_pid": claude_pid, "schema": SCHEMA_VERSION, "started_ts": started_ts,
         }
         atomic_write_json(session_file, status)
         notify(SESSIONS_NOTIFY_SOCKET)
@@ -409,6 +421,8 @@ def main():
         "tasks_total": tasks_total,
         "title": title,
         "claude_pid": claude_pid,
+        "schema": SCHEMA_VERSION,
+        "started_ts": started_ts,
     }
 
     atomic_write_json(session_file, status)

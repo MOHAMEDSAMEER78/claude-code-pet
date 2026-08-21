@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>ai.armada.claudepet</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>1.1.1</string>
     <key>CFBundleExecutable</key>
     <string>ClaudePet</string>
     <key>CFBundleIconFile</key>
@@ -24,5 +24,18 @@
     <true/>
     <key>NSHumanReadableCopyright</key>
     <string>Personal utility, not for distribution.</string>
+    <key>SUFeedURL</key>
+    <string>https://mohamedsameer78.github.io/claude-code-pet/appcast.xml</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <!--
+      Sparkle's public EdDSA key, used to verify downloaded update packages -
+      independent of Apple code signing/notarization. The matching private
+      key is stored in the login Keychain (generated via generate_keys) -
+      export it into this repo's SPARKLE_PRIVATE_KEY GitHub Actions secret
+      (used by the release workflow's appcast-signing step) and nowhere else.
+    -->
+    <key>SUPublicEDKey</key>
+    <string>D+qLo2uEFAUtFKI5lUYuRhAoXe6Y7/4x/hDt9kuMofo=</string>
 </dict>
 </plist>

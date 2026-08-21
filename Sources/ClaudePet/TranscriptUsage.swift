@@ -1,4 +1,5 @@
 import Foundation
+import ClaudePetCore
 
 /// Reads token usage straight out of Claude Code's own transcript files -
 /// not the hook payloads, which don't carry usage data. Claude Code writes
@@ -16,6 +17,11 @@ enum TranscriptUsage {
         var cacheReadTokens: Int
         var estimatedCostUSD: Double
         var model: String?
+        /// True when `model` didn't match a known pricing tier and the
+        /// Sonnet-tier default was used instead - callers should mark the
+        /// cost as an extra-rough estimate (e.g. "(est.)") rather than
+        /// presenting it the same as a matched-model cost.
+        var isRoughEstimate: Bool
 
         var totalTokens: Int { inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens }
     }
@@ -67,28 +73,9 @@ enum TranscriptUsage {
         return Totals(
             inputTokens: input, outputTokens: output,
             cacheCreationTokens: cacheCreate, cacheReadTokens: cacheRead,
-            estimatedCostUSD: estimatedCostUSD(model: model, input: input, output: output, cacheCreate: cacheCreate, cacheRead: cacheRead),
-            model: model
+            estimatedCostUSD: PricingTable.estimatedCostUSD(model: model, input: input, output: output, cacheCreate: cacheCreate, cacheRead: cacheRead),
+            model: model,
+            isRoughEstimate: !PricingTable.isKnownModel(model)
         )
-    }
-
-    /// Rough per-million-token pricing (standard tier, USD). Hardcoded and
-    /// will drift out of date as pricing changes - this is meant to be a
-    /// ballpark, not a bill. Unrecognized/future model names fall back to
-    /// Sonnet-tier pricing rather than silently reporting $0.
-    private static func pricing(for model: String?) -> (input: Double, output: Double, cacheWrite: Double, cacheRead: Double) {
-        let m = (model ?? "").lowercased()
-        if m.contains("opus") { return (15, 75, 18.75, 1.5) }
-        if m.contains("haiku") { return (0.8, 4, 1, 0.08) }
-        return (3, 15, 3.75, 0.3) // sonnet, and unknown/default
-    }
-
-    private static func estimatedCostUSD(model: String?, input: Int, output: Int, cacheCreate: Int, cacheRead: Int) -> Double {
-        let p = pricing(for: model)
-        let million = 1_000_000.0
-        return Double(input) * p.input / million
-            + Double(output) * p.output / million
-            + Double(cacheCreate) * p.cacheWrite / million
-            + Double(cacheRead) * p.cacheRead / million
     }
 }

@@ -9,6 +9,7 @@ struct CommandPaletteView: View {
     let identityFor: (String) -> String
     let onSelect: (EffectiveSession) -> Void
     let onCancel: () -> Void
+    var onHeightChange: (CGFloat) -> Void = { _ in }
 
     @State private var query = ""
     @FocusState private var searchFocused: Bool
@@ -77,6 +78,13 @@ struct CommandPaletteView: View {
         }
         .frame(width: 440)
         .background(.regularMaterial)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { onHeightChange(geo.size.height) }
+                    .onChange(of: geo.size.height) { onHeightChange($0) }
+            }
+        )
         .onAppear { searchFocused = true }
         .onExitCommand { onCancel() }
     }

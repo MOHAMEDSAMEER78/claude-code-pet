@@ -32,13 +32,24 @@ There's no first-party API for this — Claude Code is a CLI. The bridge is enti
 
 ## Install
 
+**Homebrew** (installs a tagged release build from GitHub Releases):
+
+```bash
+brew tap MOHAMEDSAMEER78/claude-code-pet https://github.com/MOHAMEDSAMEER78/claude-code-pet
+brew install --cask claudepet
+```
+
+**Build from source:**
+
 ```bash
 cd ~/claude-code-pet
 ./build_app.sh          # builds ClaudePet.app into this directory
 open ClaudePet.app
 ```
 
-The app is a plain, unsigned (ad-hoc signed) `.app` bundle — there's no installer. Move it to `/Applications` if you want it there; it'll keep working from anywhere as long as the hook commands below still point at `~/claude-code-pet/hooks/pet-hook.py`.
+The app is a plain, unsigned (ad-hoc signed) `.app` bundle — there's no installer. Move it to `/Applications` if you want it there; it'll keep working from anywhere as long as the hook commands below still point at `~/claude-code-pet/hooks/pet-hook.py`. Since it isn't notarized, macOS Gatekeeper will show an "unidentified developer" warning on first launch either way — approve it once via System Settings → Privacy & Security → Open Anyway.
+
+Once installed, "Check for Updates…" in the menu bar checks for newer tagged releases automatically (via Sparkle) — this only covers checking/downloading updates, not the first-run Gatekeeper prompt above.
 
 ### Wire up the hooks
 
@@ -115,10 +126,10 @@ Use the menu bar icon → **Next Pet** / **Use Emoji Pet** / **Reload Pets** / *
 
 - No first-party integration — this breaks if Anthropic changes hook payload shapes or event names.
 - `Notification`/permission-hook latency can be a couple of seconds in some Claude Code versions.
-- Click-to-focus and kill-session both rely on process-tree/command-line heuristics to find the right terminal/process; they degrade gracefully (button does nothing / is disabled) rather than acting on a guess when the heuristic can't resolve.
-- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh`, fine for running on your own Mac, not for handing to someone else without re-signing. No auto-update mechanism either; a new build means re-running `build_app.sh`.
-- Session stats deliberately don't show "time worked" — the hook payloads give a last-write timestamp per session, not a trustworthy session-start time, so a duration would mean making a number up.
+- Click-to-focus and kill-session both rely on process-tree/command-line heuristics to find the right terminal/process; they degrade gracefully (button does nothing / is disabled) rather than acting on a guess when the heuristic can't resolve. Click-to-focus resolves a session running inside tmux to the right pane on a best-effort basis; VS Code/Cursor don't expose a per-tab tty at all, so clicking one of those sessions only raises the editor's window, not the specific integrated terminal tab (the tray row's tooltip says so).
+- Not code-signed for distribution — ad-hoc signed locally by `build_app.sh` (or by the release CI job), fine for running on your own Mac, not for handing to someone else without re-signing. Sparkle auto-update covers checking/downloading newer releases, but doesn't remove the first-run Gatekeeper "unidentified developer" warning, since that specifically requires notarization.
 - Token/cost estimates are read from Claude Code's own transcript files (`~/.claude/projects/*/<session_id>.jsonl`), which are an undocumented, internal format, not a stable API — this can break silently if that layout changes. Pricing is a hardcoded per-model table (standard tier) that will drift out of date; treat the numbers as a ballpark, not a bill.
+- **Platform support**: macOS 13+ only, by design — the app is built on AppKit (`NSPanel`, `NSStatusItem`), AppleScript (terminal-tab focusing), and `SMAppService` (Launch at Login) throughout, none of which have a Windows/Linux equivalent. There's no cross-platform version planned.
 
 ## Testing
 

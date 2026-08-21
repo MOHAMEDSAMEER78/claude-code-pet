@@ -27,4 +27,15 @@ enum PetIdentity {
         let index = Int(stableHash(sessionId) % UInt64(pool.count))
         return pool[index]
     }
+
+    /// Which string to hash the display name from: the session id (default -
+    /// a distinct name per concurrent chat) or the project directory's name
+    /// (so every session in the same repo shows the same pet, at the cost of
+    /// two sessions in different repos being able to collide on a name).
+    /// Falls back to the session id whenever there's no cwd to group by.
+    static func identityKey(sessionId: String, cwd: String?, groupByProject: Bool) -> String {
+        guard groupByProject, let cwd, !cwd.isEmpty else { return sessionId }
+        let name = URL(fileURLWithPath: cwd).lastPathComponent
+        return name.isEmpty ? sessionId : name
+    }
 }

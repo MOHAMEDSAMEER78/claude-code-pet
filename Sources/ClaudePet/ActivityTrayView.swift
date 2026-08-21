@@ -23,6 +23,19 @@ struct ActivityTrayRow: View {
         session.bubbleText // "cwd · tool · summary" style text
     }
 
+    /// VS Code/Cursor don't expose a per-tab tty over AppleScript the way
+    /// Terminal.app/iTerm2 do, so clicking a session hosted in one of them
+    /// only reuses/raises that editor's whole window, not the exact
+    /// integrated terminal panel - surfaced here instead of silently
+    /// under-delivering on "select an activity to open its chat".
+    private var focusHelpText: String {
+        guard let app = session.terminalApp else { return "Click to focus this session's terminal" }
+        if app.hasPrefix("Cursor") || app == "Code" || app == "Code Helper" {
+            return "Click to focus the \(app == "Code" || app == "Code Helper" ? "VS Code" : "Cursor") window - not the exact integrated terminal tab, which isn't exposed to apps like this"
+        }
+        return "Click to focus this session's terminal"
+    }
+
     private var dotColor: Color {
         switch session.state {
         case .waitingPermission: return .orange
@@ -60,13 +73,14 @@ struct ActivityTrayRow: View {
                             .truncationMode(.middle)
                     }
                     if let usage {
-                        Text("\(Self.formatTokens(usage.totalTokens)) tok · \(Self.formatCost(usage.estimatedCostUSD)) est.")
+                        Text("\(Self.formatTokens(usage.totalTokens)) tok · \(Self.formatCost(usage.estimatedCostUSD)) est.\(usage.isRoughEstimate ? " (unrecognized model)" : "")")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.45))
                     }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onSelect)
+                .help(focusHelpText)
                 Spacer(minLength: 4)
                 if let total = session.tasksTotal, total > 0, let done = session.tasksDone {
                     TaskProgressRing(done: done, total: total)
@@ -130,8 +144,12 @@ struct ActivityTrayRow: View {
 /// single-pet aggregate), opened by clicking the pet.
 struct ActivityTrayView: View {
     @ObservedObject var store: SessionStore
+    @ObservedObject var settings: AppSettings = .shared
     let identityFor: (String) -> String
     let onSelect: (EffectiveSession) -> Void
+
+    @State private var searchText: String = ""
+    @State private var filter: TrayFilter = .all
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -140,6 +158,10 @@ struct ActivityTrayView: View {
                 .foregroundStyle(.white.opacity(0.6))
                 .padding(.horizontal, 4)
 
+            if !store.sessions.isEmpty {
+                controls
+            }
+
             if store.sessions.isEmpty {
                 Text("No active Claude Code sessions")
                     .font(.system(size: 11))
@@ -147,15 +169,10 @@ struct ActivityTrayView: View {
                     .padding(8)
             } else {
                 ScrollView {
-                    VStack(spacing: 4) {
-                        ForEach(store.sessions.sorted(by: { $0.state.priority > $1.state.priority })) { session in
-                            ActivityTrayRow(
-                                session: session,
-                                fallbackName: identityFor(session.sessionId),
-                                onSelect: { onSelect(session) },
-                                onKill: { store.killSession(session) }
-                            )
-                        }
+                    if settings.groupTrayByProject {
+                        groupedList
+                    } else {
+                        flatList
                     }
                 }
                 .frame(maxHeight: 260)
@@ -167,6 +184,58 @@ struct ActivityTrayView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var controls: some View {
+        VStack(spacing: 6) {
+            TextField("Search sessions…", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11))
+                .padding(6)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+
+            Picker("", selection: $filter) {
+                ForEach(TrayFilter.allCases, id: \.self) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var flatList: some View {
+        VStack(spacing: 4) {
+            ForEach(TrayLogic.visibleSessions(store.sessions, searchText: searchText, filter: filter)) { session in
+                row(for: session)
+            }
+        }
+    }
+
+    private var groupedList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(TrayLogic.groupedByProject(store.sessions, searchText: searchText, filter: filter), id: \.key) { group in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(group.key)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .padding(.horizontal, 4)
+                    ForEach(group.sessions) { session in
+                        row(for: session)
+                    }
+                }
+            }
+        }
+    }
+
+    private func row(for session: EffectiveSession) -> some View {
+        ActivityTrayRow(
+            session: session,
+            fallbackName: identityFor(session.sessionId),
+            onSelect: { onSelect(session) },
+            onKill: { store.killSession(session) }
         )
     }
 }

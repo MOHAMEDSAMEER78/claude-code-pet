@@ -39,14 +39,21 @@ final class HotKeyManager {
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
-            guard let event, let userData else { return noErr }
+            // Handlers installed on the shared application event target form
+            // a chain; returning noErr tells Carbon "fully handled, stop
+            // here" and swallows the event before any earlier-installed
+            // handler sees it. Returning eventNotHandledErr on a non-match
+            // instead lets the event fall through to the next handler in the
+            // chain (e.g. another HotKeyManager instance's), so multiple
+            // hotkeys registered this way can coexist.
+            guard let event, let userData else { return OSStatus(eventNotHandledErr) }
             var pressedID = EventHotKeyID()
             GetEventParameter(
                 event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                 nil, MemoryLayout<EventHotKeyID>.size, nil, &pressedID
             )
             let manager = Unmanaged<HotKeyManager>.fromOpaque(userData).takeUnretainedValue()
-            guard pressedID.id == manager.id else { return noErr }
+            guard pressedID.id == manager.id else { return OSStatus(eventNotHandledErr) }
             manager.onPress()
             return noErr
         }, 1, &eventType, selfPtr, &handlerRef)
