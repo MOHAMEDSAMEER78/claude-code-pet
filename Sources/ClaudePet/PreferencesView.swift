@@ -13,9 +13,16 @@ struct PreferencesView: View {
                 Toggle("Multi-Session Pets (one pet per session)", isOn: $settings.multiSessionMode)
             }
             Section("Alerts") {
-                Toggle("Notify when a permission decision is needed", isOn: $settings.notificationsEnabled)
+                Toggle("Enable notifications", isOn: $settings.notificationsEnabled)
                 Toggle("Play a sound on review/failure/permission", isOn: $settings.soundEnabled)
             }
+            Section("Notify me when a session…") {
+                Toggle("needs a permission decision", isOn: $settings.notifyOnPermission)
+                Toggle("fails", isOn: $settings.notifyOnFailed)
+                Toggle("is ready for review", isOn: $settings.notifyOnReview)
+                Toggle("starts running", isOn: $settings.notifyOnRunning)
+            }
+            .disabled(!settings.notificationsEnabled)
             Section("Startup") {
                 Toggle("Launch ClaudePet at login", isOn: Binding(
                     get: { settings.launchAtLogin },
@@ -28,7 +35,7 @@ struct PreferencesView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 380, height: 300)
+        .frame(width: 380, height: 420)
         .onAppear {
             // SMAppService is the source of truth - reconcile in case the
             // user removed it from System Settings > Login Items directly.

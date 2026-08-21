@@ -15,6 +15,10 @@ final class AppSettings: ObservableObject {
         case soundEnabled
         case notificationsEnabled
         case launchAtLogin
+        case notifyOnFailed
+        case notifyOnReview
+        case notifyOnPermission
+        case notifyOnRunning
     }
 
     private let defaults: UserDefaults
@@ -42,17 +46,40 @@ final class AppSettings: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin.rawValue) }
     }
+    /// Per-state notification rules, replacing NotificationManager's
+    /// previously-hardcoded "only failed/review, always permission" gating.
+    /// Defaults preserve exactly that prior behavior so existing users see
+    /// no change unless they open Preferences.
+    @Published var notifyOnFailed: Bool {
+        didSet { defaults.set(notifyOnFailed, forKey: Key.notifyOnFailed.rawValue) }
+    }
+    @Published var notifyOnReview: Bool {
+        didSet { defaults.set(notifyOnReview, forKey: Key.notifyOnReview.rawValue) }
+    }
+    @Published var notifyOnPermission: Bool {
+        didSet { defaults.set(notifyOnPermission, forKey: Key.notifyOnPermission.rawValue) }
+    }
+    @Published var notifyOnRunning: Bool {
+        didSet { defaults.set(notifyOnRunning, forKey: Key.notifyOnRunning.rawValue) }
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.multiSessionMode = defaults.bool(forKey: Key.multiSessionMode.rawValue)
-        // wanderEnabled/notificationsEnabled default to true unless the user
-        // has explicitly turned them off before.
+        // wanderEnabled/notificationsEnabled/notifyOnFailed/notifyOnReview/
+        // notifyOnPermission default to true unless explicitly turned off.
         self.wanderEnabled = defaults.object(forKey: Key.wanderEnabled.rawValue) == nil
             ? true : defaults.bool(forKey: Key.wanderEnabled.rawValue)
         self.soundEnabled = defaults.bool(forKey: Key.soundEnabled.rawValue)
         self.notificationsEnabled = defaults.object(forKey: Key.notificationsEnabled.rawValue) == nil
             ? true : defaults.bool(forKey: Key.notificationsEnabled.rawValue)
         self.launchAtLogin = defaults.bool(forKey: Key.launchAtLogin.rawValue)
+        self.notifyOnFailed = defaults.object(forKey: Key.notifyOnFailed.rawValue) == nil
+            ? true : defaults.bool(forKey: Key.notifyOnFailed.rawValue)
+        self.notifyOnReview = defaults.object(forKey: Key.notifyOnReview.rawValue) == nil
+            ? true : defaults.bool(forKey: Key.notifyOnReview.rawValue)
+        self.notifyOnPermission = defaults.object(forKey: Key.notifyOnPermission.rawValue) == nil
+            ? true : defaults.bool(forKey: Key.notifyOnPermission.rawValue)
+        self.notifyOnRunning = defaults.bool(forKey: Key.notifyOnRunning.rawValue)
     }
 }
