@@ -13,6 +13,12 @@ jobs:
   release:
     name: build and publish
     runs-on: macos-latest
+    env:
+      # `secrets` isn't a recognized context inside a step-level `if:` -
+      # GitHub's workflow validator rejects it outright (invalid workflow
+      # file, 0 jobs run). Route it through env: (where secrets IS allowed)
+      # so the two Sparkle steps below can gate on env instead.
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,11 +70,11 @@ jobs:
       # Settings > Secrets and variables > Actions); skipped otherwise so
       # tagging a release doesn't hard-fail before that one-time setup step.
       - name: Resolve Sparkle tools
-        if: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+        if: ${{ env.HAS_SPARKLE_KEY == 'true' }}
         run: swift package resolve
 
       - name: Generate and sign appcast
-        if: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+        if: ${{ env.HAS_SPARKLE_KEY == 'true' }}
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |

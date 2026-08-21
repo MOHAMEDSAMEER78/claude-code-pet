@@ -25,7 +25,7 @@
     <key>NSHumanReadableCopyright</key>
     <string>Personal utility, not for distribution.</string>
     <key>SUFeedURL</key>
-    <string>https://mohamedsameer78.github.io/claude-code-pet/appcast.xml</string>
+    <string>https://mohamedsameer78.github.io/claudepet/appcast.xml</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <!--
