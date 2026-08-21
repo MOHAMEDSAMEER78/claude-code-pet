@@ -13,6 +13,10 @@ jobs:
   release:
     name: build and publish
     runs-on: macos-latest
+    # The repo's default GITHUB_TOKEN permissions are read-only; this job
+    # needs to publish a release and push the generated cask/appcast commit.
+    permissions:
+      contents: write
     env:
       # `secrets` isn't a recognized context inside a step-level `if:` -
       # GitHub's workflow validator rejects it outright (invalid workflow
