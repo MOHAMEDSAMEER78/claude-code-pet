@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Darwin
+import os
 import ClaudePetCore
 
 /// Watches ~/.claude/pet/sessions/*.json (one file per Claude Code session,
@@ -17,6 +18,11 @@ final class SessionStore: ObservableObject {
     @Published private(set) var tasksDone: Int?
     @Published private(set) var tasksTotal: Int?
     @Published private(set) var title: String?
+    /// Set whenever `refresh()` skips a session file it couldn't decode -
+    /// visible (via Preferences/Stats) rather than silently vanishing that
+    /// session, so a hook/app version mismatch doesn't look like a bug with
+    /// no trace. Cleared once no file currently fails to decode.
+    @Published private(set) var lastDecodeWarning: String?
 
     private let directory: URL
     private var dirWatcher: DispatchSourceFileSystemObject?
@@ -87,10 +93,24 @@ final class SessionStore: ObservableObject {
             at: directory, includingPropertiesForKeys: nil)) ?? []
 
         var statuses: [SessionStatus] = []
+        var decodeWarning: String?
         for file in files where file.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: file),
-                  let status = try? JSONDecoder().decode(SessionStatus.self, from: data)
-            else { continue }
+            guard let data = try? Data(contentsOf: file) else { continue }
+            let status: SessionStatus
+            switch SessionLogic.decodeStatus(data: data) {
+            case .success(let decoded):
+                status = decoded
+            case .failure(let issue):
+                switch issue {
+                case .malformed:
+                    os_log(.error, "ClaudePet: skipped unreadable session file %{public}@", file.lastPathComponent)
+                case .unsupportedSchema(let found):
+                    let message = "Session file \(file.lastPathComponent) uses a newer format (schema \(found)) than this build of ClaudePet understands - update the app."
+                    os_log(.error, "ClaudePet: %{public}@", message)
+                    decodeWarning = message
+                }
+                continue
+            }
 
             // A session whose process has actually exited (crash, force-quit
             // terminal, killed mid-turn) never gets to run its own SessionEnd
@@ -133,6 +153,7 @@ final class SessionStore: ObservableObject {
 
         sessions = effective
         sessionCount = effective.count
+        lastDecodeWarning = decodeWarning
 
         guard let winner = SessionLogic.winner(among: effective) else {
             aggregate = .idle

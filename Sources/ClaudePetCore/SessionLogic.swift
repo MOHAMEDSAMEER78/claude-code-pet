@@ -41,6 +41,37 @@ public struct EffectiveSession: Identifiable {
 /// Extracted from SessionStore so it can be unit tested without a live
 /// filesystem watcher or process table.
 public enum SessionLogic {
+    /// The newest session/request-file shape this build understands. Bump
+    /// alongside `SCHEMA_VERSION` in hooks/pet-hook.py whenever a field is
+    /// renamed/removed/reinterpreted in a way an older build couldn't decode.
+    public static let currentSchemaVersion = 1
+
+    /// Why a session/request file's data didn't decode into a usable value -
+    /// distinct from a plain "the JSON was garbage" failure so the caller can
+    /// log something more useful than a silent skip.
+    public enum DecodeIssue: Equatable, Error {
+        case malformed
+        case unsupportedSchema(found: Int)
+    }
+
+    /// Checks the on-disk `schema` field (via JSONSerialization, ahead of the
+    /// strongly-typed decode below) before attempting to decode into
+    /// `SessionStatus` - a session file written by a *newer* pet-hook.py than
+    /// this build understands should be skipped with a visible reason, not
+    /// silently dropped like any other malformed file. Missing/absent
+    /// `schema` (pre-versioning files) is treated as schema 0, always
+    /// supported.
+    public static func decodeStatus(data: Data) -> Result<SessionStatus, DecodeIssue> {
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let schema = obj["schema"] as? Int, schema > currentSchemaVersion {
+            return .failure(.unsupportedSchema(found: schema))
+        }
+        guard let status = try? JSONDecoder().decode(SessionStatus.self, from: data) else {
+            return .failure(.malformed)
+        }
+        return .success(status)
+    }
+
     /// A "review" state older than `reviewDecaySeconds` decays to idle in the
     /// UI - Claude Code's own `idle_prompt` notification is unreliable, so
     /// the app times this out locally instead of depending on it.

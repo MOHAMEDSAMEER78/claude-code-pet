@@ -39,6 +39,13 @@ import uuid
 SESSIONS_DIR = os.path.expanduser("~/.claude/pet/sessions")
 REQUESTS_DIR = os.path.expanduser("~/.claude/pet/requests")
 
+# Bump whenever a session/request file's shape changes in a way an older
+# ClaudePet.app build couldn't understand (renamed/removed field, changed
+# meaning). The app checks this before decoding and skips-with-a-visible-
+# warning instead of silently vanishing the session, so this is the one
+# place to bump when making a breaking change here.
+SCHEMA_VERSION = 1
+
 # Datagram (connectionless) Unix sockets the app listens on, one per
 # directory it watches - pinged right after a write/removal in that
 # directory so the app refreshes immediately instead of waiting on its own
@@ -314,6 +321,7 @@ def notify_permission_needed(session_id, cwd, tool, summary):
         "tool": tool,
         "summary": summary,
         "ts": time.time(),
+        "schema": SCHEMA_VERSION,
     }
     atomic_write_json(os.path.join(REQUESTS_DIR, f"{request_id}.json"), request)
     notify(REQUESTS_NOTIFY_SOCKET)
@@ -354,7 +362,7 @@ def main():
             "cwd": payload.get("cwd"), "tool": tool, "summary": summary, "action": action,
             "ts": time.time(), "terminal_pid": terminal_pid, "terminal_app": terminal_app,
             "tty": tty, "tasks_done": tasks_done, "tasks_total": tasks_total, "title": title,
-            "claude_pid": claude_pid,
+            "claude_pid": claude_pid, "schema": SCHEMA_VERSION,
         }
         atomic_write_json(session_file, status)
         notify(SESSIONS_NOTIFY_SOCKET)
@@ -409,6 +417,7 @@ def main():
         "tasks_total": tasks_total,
         "title": title,
         "claude_pid": claude_pid,
+        "schema": SCHEMA_VERSION,
     }
 
     atomic_write_json(session_file, status)

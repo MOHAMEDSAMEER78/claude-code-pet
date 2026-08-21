@@ -19,6 +19,46 @@ struct SessionLogicTests {
         )
     }
 
+    // MARK: - decodeStatus
+
+    @Test func decodeStatusSucceedsForWellFormedData() {
+        let json = """
+        {"session_id":"s1","state":"running","ts":1000,"schema":1}
+        """.data(using: .utf8)!
+        switch SessionLogic.decodeStatus(data: json) {
+        case .success(let status): #expect(status.sessionId == "s1")
+        case .failure: Issue.record("expected success")
+        }
+    }
+
+    @Test func decodeStatusSucceedsWhenSchemaFieldIsAbsent() {
+        let json = """
+        {"session_id":"s1","state":"running","ts":1000}
+        """.data(using: .utf8)!
+        switch SessionLogic.decodeStatus(data: json) {
+        case .success: break
+        case .failure: Issue.record("expected success - missing schema means schema 0, always supported")
+        }
+    }
+
+    @Test func decodeStatusFailsForMalformedJSON() {
+        let json = "not json".data(using: .utf8)!
+        switch SessionLogic.decodeStatus(data: json) {
+        case .success: Issue.record("expected failure")
+        case .failure(let issue): #expect(issue == .malformed)
+        }
+    }
+
+    @Test func decodeStatusFailsForNewerUnsupportedSchema() {
+        let json = """
+        {"session_id":"s1","state":"running","ts":1000,"schema":999}
+        """.data(using: .utf8)!
+        switch SessionLogic.decodeStatus(data: json) {
+        case .success: Issue.record("expected failure")
+        case .failure(let issue): #expect(issue == .unsupportedSchema(found: 999))
+        }
+    }
+
     // MARK: - effectiveState
 
     @Test func reviewDecaysToIdleAfterWindow() {

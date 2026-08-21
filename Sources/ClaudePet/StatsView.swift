@@ -10,6 +10,10 @@ struct StatsView: View {
     /// spending right now" figure alongside the historical counters -
     /// summed from Claude Code's own transcript files, not the history log.
     var activeSessionIds: [String] = []
+    /// Set when SessionStore had to skip a session file it couldn't decode
+    /// (e.g. written by a hook version newer than this app understands) -
+    /// surfaced here instead of the session just silently vanishing.
+    var decodeWarning: String?
 
     @State private var activeSpendUSD: Double?
 
@@ -32,6 +36,12 @@ struct StatsView: View {
                 Text("Estimated from Claude Code's own transcripts (undocumented format) using rough per-model pricing - a ballpark, not a bill.")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
+            }
+
+            if let decodeWarning {
+                Text("⚠️ \(decodeWarning)")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.orange)
             }
         }
         .padding(18)
