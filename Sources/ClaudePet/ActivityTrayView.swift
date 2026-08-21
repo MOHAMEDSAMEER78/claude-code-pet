@@ -23,6 +23,19 @@ struct ActivityTrayRow: View {
         session.bubbleText // "cwd · tool · summary" style text
     }
 
+    /// VS Code/Cursor don't expose a per-tab tty over AppleScript the way
+    /// Terminal.app/iTerm2 do, so clicking a session hosted in one of them
+    /// only reuses/raises that editor's whole window, not the exact
+    /// integrated terminal panel - surfaced here instead of silently
+    /// under-delivering on "select an activity to open its chat".
+    private var focusHelpText: String {
+        guard let app = session.terminalApp else { return "Click to focus this session's terminal" }
+        if app.hasPrefix("Cursor") || app == "Code" || app == "Code Helper" {
+            return "Click to focus the \(app == "Code" || app == "Code Helper" ? "VS Code" : "Cursor") window - not the exact integrated terminal tab, which isn't exposed to apps like this"
+        }
+        return "Click to focus this session's terminal"
+    }
+
     private var dotColor: Color {
         switch session.state {
         case .waitingPermission: return .orange
@@ -67,6 +80,7 @@ struct ActivityTrayRow: View {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onSelect)
+                .help(focusHelpText)
                 Spacer(minLength: 4)
                 if let total = session.tasksTotal, total > 0, let done = session.tasksDone {
                     TaskProgressRing(done: done, total: total)
