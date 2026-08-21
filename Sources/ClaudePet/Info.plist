@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>ai.armada.claudepet</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>1.1.1</string>
     <key>CFBundleExecutable</key>
     <string>ClaudePet</string>
     <key>CFBundleIconFile</key>
@@ -30,16 +30,12 @@
     <true/>
     <!--
       Sparkle's public EdDSA key, used to verify downloaded update packages -
-      independent of Apple code signing/notarization. Placeholder until a
-      real keypair is generated (once, locally):
-        swift package --package-path . resolve
-        .build/checkouts/Sparkle/bin/generate_keys
-      That prints this public key (paste it below) and stores the private
-      key in the login Keychain - copy the private key into this repo's
-      SPARKLE_PRIVATE_KEY GitHub Actions secret (used by the release
-      workflow's appcast-signing step) and nowhere else.
+      independent of Apple code signing/notarization. The matching private
+      key is stored in the login Keychain (generated via generate_keys) -
+      export it into this repo's SPARKLE_PRIVATE_KEY GitHub Actions secret
+      (used by the release workflow's appcast-signing step) and nowhere else.
     -->
     <key>SUPublicEDKey</key>
-    <string>REPLACE_WITH_GENERATED_ED25519_PUBLIC_KEY</string>
+    <string>D+qLo2uEFAUtFKI5lUYuRhAoXe6Y7/4x/hDt9kuMofo=</string>
 </dict>
 </plist>
