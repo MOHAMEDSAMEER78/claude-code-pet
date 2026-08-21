@@ -32,13 +32,24 @@ There's no first-party API for this — Claude Code is a CLI. The bridge is enti
 
 ## Install
 
+**Homebrew** (installs a tagged release build from GitHub Releases):
+
+```bash
+brew tap MOHAMEDSAMEER78/claude-code-pet https://github.com/MOHAMEDSAMEER78/claude-code-pet
+brew install --cask claudepet
+```
+
+**Build from source:**
+
 ```bash
 cd ~/claude-code-pet
 ./build_app.sh          # builds ClaudePet.app into this directory
 open ClaudePet.app
 ```
 
-The app is a plain, unsigned (ad-hoc signed) `.app` bundle — there's no installer. Move it to `/Applications` if you want it there; it'll keep working from anywhere as long as the hook commands below still point at `~/claude-code-pet/hooks/pet-hook.py`.
+The app is a plain, unsigned (ad-hoc signed) `.app` bundle — there's no installer. Move it to `/Applications` if you want it there; it'll keep working from anywhere as long as the hook commands below still point at `~/claude-code-pet/hooks/pet-hook.py`. Since it isn't notarized, macOS Gatekeeper will show an "unidentified developer" warning on first launch either way — approve it once via System Settings → Privacy & Security → Open Anyway.
+
+Once installed, "Check for Updates…" in the menu bar checks for newer tagged releases automatically (via Sparkle) — this only covers checking/downloading updates, not the first-run Gatekeeper prompt above.
 
 ### Wire up the hooks
 

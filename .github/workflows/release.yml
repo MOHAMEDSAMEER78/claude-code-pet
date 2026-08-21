@@ -42,7 +42,15 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent ClaudePet.app "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip"
 
       - name: Compute checksum
-        run: shasum -a 256 "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" > "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256"
+        id: checksum
+        run: |
+          shasum -a 256 "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" > "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256"
+          echo "sha256=$(cut -d' ' -f1 "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256")" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew cask
+        run: |
+          sed -i '' "s/^  version \".*\"/  version \"${{ steps.version.outputs.version }}\"/" Casks/claudepet.rb
+          sed -i '' "s/^  sha256 \".*\"/  sha256 \"${{ steps.checksum.outputs.sha256 }}\"/" Casks/claudepet.rb
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -73,11 +81,10 @@ jobs:
           mkdir -p docs
           cp release-archives/appcast.xml docs/appcast.xml
 
-      - name: Commit appcast to docs/
-        if: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+      - name: Commit generated release files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/appcast.xml
-          git diff --cached --quiet || git commit -m "Update appcast.xml for ${{ github.ref_name }}"
+          git add Casks/claudepet.rb docs/appcast.xml 2>/dev/null || git add Casks/claudepet.rb
+          git diff --cached --quiet || git commit -m "Update cask and appcast for ${{ github.ref_name }}"
           git push origin HEAD:main
