@@ -51,7 +51,11 @@ final class MultiPetController {
                 vm.update(with: session)
             } else {
                 let pool = PetIdentity.namePool(customPetDirs: library.availableDirs)
-                let name = PetIdentity.name(for: session.sessionId, pool: pool)
+                let key = PetIdentity.identityKey(
+                    sessionId: session.sessionId, cwd: session.cwd,
+                    groupByProject: AppSettings.shared.groupPetsByProject
+                )
+                let name = PetIdentity.name(for: key, pool: pool)
                 let vm = SessionPetViewModel(session: session, identityName: name)
                 viewModels[session.sessionId] = vm
                 let origin = PetPanel.slotOrigin(index: index)

@@ -11,6 +11,8 @@ struct PreferencesView: View {
             Section("Behavior") {
                 Toggle("Wander when idle", isOn: $settings.wanderEnabled)
                 Toggle("Multi-Session Pets (one pet per session)", isOn: $settings.multiSessionMode)
+                Toggle("Name pets by project (not session)", isOn: $settings.groupPetsByProject)
+                Toggle("Group Activity Tray by project", isOn: $settings.groupTrayByProject)
             }
             Section("Alerts") {
                 Toggle("Enable notifications", isOn: $settings.notificationsEnabled)

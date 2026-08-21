@@ -19,6 +19,8 @@ final class AppSettings: ObservableObject {
         case notifyOnReview
         case notifyOnPermission
         case notifyOnRunning
+        case groupPetsByProject
+        case groupTrayByProject
     }
 
     private let defaults: UserDefaults
@@ -62,6 +64,17 @@ final class AppSettings: ObservableObject {
     @Published var notifyOnRunning: Bool {
         didSet { defaults.set(notifyOnRunning, forKey: Key.notifyOnRunning.rawValue) }
     }
+    /// In Multi-Session Pets mode, key each pet's display name off its
+    /// project directory instead of its session id, so every session in the
+    /// same repo consistently shows the same named pet across relaunches.
+    @Published var groupPetsByProject: Bool {
+        didSet { defaults.set(groupPetsByProject, forKey: Key.groupPetsByProject.rawValue) }
+    }
+    /// Groups the Activity Tray's session list by project (cwd basename)
+    /// instead of one flat priority-sorted list.
+    @Published var groupTrayByProject: Bool {
+        didSet { defaults.set(groupTrayByProject, forKey: Key.groupTrayByProject.rawValue) }
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -81,5 +94,7 @@ final class AppSettings: ObservableObject {
         self.notifyOnPermission = defaults.object(forKey: Key.notifyOnPermission.rawValue) == nil
             ? true : defaults.bool(forKey: Key.notifyOnPermission.rawValue)
         self.notifyOnRunning = defaults.bool(forKey: Key.notifyOnRunning.rawValue)
+        self.groupPetsByProject = defaults.bool(forKey: Key.groupPetsByProject.rawValue)
+        self.groupTrayByProject = defaults.bool(forKey: Key.groupTrayByProject.rawValue)
     }
 }

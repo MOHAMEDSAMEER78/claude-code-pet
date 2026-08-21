@@ -242,11 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let tray = PetPanel(
                 rootView: ActivityTrayView(
                     store: store,
-                    identityFor: { [weak self] sessionId in
-                        guard let self else { return "Session" }
-                        let pool = PetIdentity.namePool(customPetDirs: self.library.availableDirs)
-                        return PetIdentity.name(for: sessionId, pool: pool)
-                    },
+                    identityFor: { [weak self] sessionId in self?.identityName(for: sessionId) ?? "Session" },
                     onSelect: { [weak self] session in
                         TerminalFocuser.focus(
                             terminalApp: session.terminalApp,
@@ -274,6 +270,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trayPanel?.animateOut()
     }
 
+    /// Shared by the tray and command palette: same pool, same key policy
+    /// (per-session by default, per-project when Group Pets By Project is on).
+    private func identityName(for sessionId: String) -> String {
+        let pool = PetIdentity.namePool(customPetDirs: library.availableDirs)
+        let cwd = store.sessions.first(where: { $0.sessionId == sessionId })?.cwd
+        let key = PetIdentity.identityKey(sessionId: sessionId, cwd: cwd, groupByProject: settings.groupPetsByProject)
+        return PetIdentity.name(for: key, pool: pool)
+    }
+
     @objc private func toggleWander() {
         animator.wanderEnabled.toggle()
         wanderMenuItem?.state = animator.wanderEnabled ? .on : .off
@@ -293,11 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if palettePanel == nil {
             let view = CommandPaletteView(
                 store: store,
-                identityFor: { [weak self] sessionId in
-                    guard let self else { return "Session" }
-                    let pool = PetIdentity.namePool(customPetDirs: self.library.availableDirs)
-                    return PetIdentity.name(for: sessionId, pool: pool)
-                },
+                identityFor: { [weak self] sessionId in self?.identityName(for: sessionId) ?? "Session" },
                 onSelect: { [weak self] session in
                     TerminalFocuser.focus(
                         terminalApp: session.terminalApp, terminalPid: session.terminalPid,
