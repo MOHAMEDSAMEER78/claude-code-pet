@@ -60,7 +60,7 @@ struct ActivityTrayRow: View {
                             .truncationMode(.middle)
                     }
                     if let usage {
-                        Text("\(Self.formatTokens(usage.totalTokens)) tok · \(Self.formatCost(usage.estimatedCostUSD)) est.")
+                        Text("\(Self.formatTokens(usage.totalTokens)) tok · \(Self.formatCost(usage.estimatedCostUSD)) est.\(usage.isRoughEstimate ? " (unrecognized model)" : "")")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.45))
                     }
