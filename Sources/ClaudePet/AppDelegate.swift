@@ -306,7 +306,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     )
                     self?.hideCommandPalette()
                 },
-                onCancel: { [weak self] in self?.hideCommandPalette() }
+                onCancel: { [weak self] in self?.hideCommandPalette() },
+                onHeightChange: { [weak self] height in self?.palettePanel?.resizeToFit(height: height) }
             )
             let p = CommandPalettePanel(rootView: view)
             paletteResignObserver = NotificationCenter.default.addObserver(
