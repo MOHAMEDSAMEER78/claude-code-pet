@@ -53,6 +53,12 @@ jobs:
         run: |
           mkdir -p release-archives
           ditto -c -k --sequesterRsrc --keepParent ClaudePet.app "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip"
+          # A second, version-less copy so the website's download button can
+          # link to a stable ".../releases/latest/download/ClaudePet.zip"
+          # URL that never needs updating - the versioned name above changes
+          # every release, so a link naming it directly would break the
+          # next time this workflow runs.
+          cp "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" "release-archives/ClaudePet.zip"
 
       - name: Compute checksum
         id: checksum
@@ -71,6 +77,7 @@ jobs:
           files: |
             release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip
             release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256
+            release-archives/ClaudePet.zip
           generate_release_notes: true
 
       # Sparkle appcast - only runs once SPARKLE_PRIVATE_KEY is set (repo
