@@ -41,6 +41,28 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(content, id: "state-\(name)-\(state.rawValue)-\(Int(Date().timeIntervalSince1970))")
     }
 
+    func notifyBudgetExceeded(spendUSD: Double, thresholdUSD: Double) {
+        guard AppSettings.shared.notificationsEnabled, authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Today's spend crossed your budget"
+        content.body = String(format: "Est. $%.2f so far, budget is $%.2f.", spendUSD, thresholdUSD)
+        content.sound = .default
+        post(content, id: "budget-\(Int(Date().timeIntervalSince1970))")
+    }
+
+    func notifyWeeklyDigest(sessions: Int, tasksCompleted: Int, secondsWorked: TimeInterval, costUSD: Double) {
+        guard AppSettings.shared.notificationsEnabled, authorized else { return }
+        let hours = secondsWorked / 3600
+        let content = UNMutableNotificationContent()
+        content.title = "This week with Claude Code"
+        content.body = String(
+            format: "%d sessions, %d tasks, %.1fh worked, est. $%.2f.",
+            sessions, tasksCompleted, hours, costUSD
+        )
+        content.sound = .default
+        post(content, id: "weekly-digest-\(Int(Date().timeIntervalSince1970))")
+    }
+
     private func isEnabled(for state: PetState) -> Bool {
         switch state {
         case .failed: return AppSettings.shared.notifyOnFailed

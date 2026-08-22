@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ClaudePet",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     dependencies: [
         // Auto-update only - independent of Apple code signing/notarization.
@@ -23,6 +24,7 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "Sources/ClaudePet",
+            resources: [.process("Resources")],
             // Keep the app in Swift 5 mode: it predates Swift 6 strict
             // concurrency checking and AppKit/SwiftUI call sites throughout
             // (NSPanel, ObservableObject stores) aren't annotated for it.

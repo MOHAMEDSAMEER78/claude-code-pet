@@ -12,6 +12,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 cp ".build/$CONFIG/ClaudePet" "$APP/Contents/MacOS/ClaudePet"
 cp "Sources/ClaudePet/Info.plist" "$APP/Contents/Info.plist"
 cp "Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+# SPM generates a resource bundle for the localized strings (Localizable
+# .strings) declared via `resources:` in Package.swift - Bundle.module's
+# accessor looks for it next to Bundle.main, so it has to land in
+# Contents/Resources or L(...) silently falls back to raw keys at runtime.
+cp -R ".build/$CONFIG/ClaudePet_ClaudePet.bundle" "$APP/Contents/Resources/ClaudePet_ClaudePet.bundle"
 # Bundled so HookInstaller can set up/repair ~/.claude/settings.json from
 # inside the app itself, independent of wherever this checkout lives.
 cp "hooks/pet-hook.py" "$APP/Contents/Resources/pet-hook.py"

@@ -35,6 +35,14 @@ final class MultiPetController {
         viewModels.removeAll()
     }
 
+    /// Re-slots every current panel against the (possibly now-different)
+    /// target screen - called when the monitor arrangement changes, since
+    /// `reconcile` otherwise only re-slots in response to a session change.
+    func relayoutForScreenChange() {
+        guard isActive else { return }
+        reconcile(store.sessions)
+    }
+
     private func reconcile(_ sessions: [EffectiveSession]) {
         let currentIds = Set(sessions.map(\.sessionId))
 
@@ -62,7 +70,8 @@ final class MultiPetController {
                 var createdPanel: PetPanel?
                 let view = SinglePetView(
                     viewModel: vm, library: library,
-                    onSizeChange: { size in createdPanel?.fitToContent(size) }
+                    onSizeChange: { size in createdPanel?.fitToContent(size) },
+                    onEndSession: { [weak store] in store?.killSession(sessionId: session.sessionId) }
                 )
                 let panel = PetPanel(rootView: view, origin: origin)
                 createdPanel = panel

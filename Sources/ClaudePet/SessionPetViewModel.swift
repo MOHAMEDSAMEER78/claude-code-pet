@@ -47,6 +47,12 @@ final class SessionPetViewModel: ObservableObject {
         title = session.title
     }
 
+    /// Key used to resolve a per-project pet skin override - same key used
+    /// for per-project naming/tray-grouping.
+    var assetKey: String {
+        PetIdentity.identityKey(sessionId: sessionId, cwd: cwd, groupByProject: true)
+    }
+
     func focusTerminal() {
         TerminalFocuser.focus(terminalApp: terminalApp, terminalPid: terminalPid, tty: tty, cwd: cwd)
     }

@@ -34,15 +34,48 @@ final class PetPanel: NSPanel {
 
         if let origin {
             setFrameOrigin(origin)
-        } else if let screen = NSScreen.main {
-            let margin: CGFloat = 24
-            let defaultOrigin = NSPoint(
-                x: screen.visibleFrame.maxX - frame.width - margin,
-                y: screen.visibleFrame.minY + margin
-            )
-            setFrameOrigin(defaultOrigin)
+        } else {
+            setFrameOrigin(Self.cornerOrigin(on: Self.targetScreen(), panelSize: frame.size, margin: 24))
         }
         topAnchorY = frame.origin.y + frame.height
+    }
+
+    /// Resolves the display the pet should stay docked to: the user's
+    /// preferred screen (by its stable NSScreenNumber) if it's still
+    /// connected, else whatever AppKit currently calls "main."
+    static func targetScreen() -> NSScreen {
+        if let id = AppSettings.shared.preferredScreenID,
+           let match = NSScreen.screens.first(where: { screenID(for: $0) == id }) {
+            return match
+        }
+        return NSScreen.main ?? NSScreen.screens[0]
+    }
+
+    static func screenID(for screen: NSScreen) -> String? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue
+    }
+
+    /// The origin for a panel of `panelSize` sitting in the user's chosen
+    /// corner of `screen`, `margin` points in from each edge it touches.
+    static func cornerOrigin(on screen: NSScreen, panelSize: NSSize, margin: CGFloat) -> NSPoint {
+        let frame = screen.visibleFrame
+        let x: CGFloat
+        let y: CGFloat
+        switch AppSettings.shared.preferredCorner {
+        case .bottomLeft:
+            x = frame.minX + margin
+            y = frame.minY + margin
+        case .bottomRight:
+            x = frame.maxX - panelSize.width - margin
+            y = frame.minY + margin
+        case .topLeft:
+            x = frame.minX + margin
+            y = frame.maxY - panelSize.height - margin
+        case .topRight:
+            x = frame.maxX - panelSize.width - margin
+            y = frame.maxY - panelSize.height - margin
+        }
+        return NSPoint(x: x, y: y)
     }
 
     /// Called whenever the SwiftUI content's natural size changes (e.g. the
@@ -53,10 +86,7 @@ final class PetPanel: NSPanel {
     func fitToContent(_ size: CGSize) {
         guard size.height > 1, abs(size.height - frame.height) > 0.5 else { return }
         let newHeight = ceil(size.height)
-        var newY = topAnchorY - newHeight
-        if let screen = NSScreen.main {
-            newY = max(newY, screen.visibleFrame.minY)
-        }
+        let newY = max(topAnchorY - newHeight, Self.targetScreen().visibleFrame.minY)
         setFrame(NSRect(x: frame.origin.x, y: newY, width: frame.width, height: newHeight), display: true)
     }
 
@@ -107,7 +137,7 @@ final class PetPanel: NSPanel {
     /// Default bottom-right-anchored slot for the Nth panel in a horizontal
     /// row of multi-pet panels (right-to-left, newest closest to the corner).
     static func slotOrigin(index: Int, panelWidth: CGFloat = 220, margin: CGFloat = 24, gap: CGFloat = 12) -> NSPoint {
-        guard let screen = NSScreen.main else { return NSPoint(x: 0, y: 0) }
+        let screen = targetScreen()
         let x = screen.visibleFrame.maxX - panelWidth - margin - CGFloat(index) * (panelWidth + gap)
         let y = screen.visibleFrame.minY + margin
         return NSPoint(x: x, y: y)

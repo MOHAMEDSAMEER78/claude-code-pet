@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings.shared
     private let notifications = NotificationManager()
     private lazy var historyStore = SessionHistoryStore(sessionStore: store)
+    private lazy var progressStore = PetProgressStore(sessionStore: store, historyStore: historyStore)
     private lazy var multiPetController = MultiPetController(store: store, library: library)
     private var toggleMenuItem: NSMenuItem?
     private var multiSessionMenuItem: NSMenuItem?
@@ -37,7 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statsWindow: NSWindow?
     private var galleryWindow: NSWindow?
     private var hookSetupWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
     private var cancellables: Set<AnyCancellable> = []
+    private var budgetDigestTimer: Timer?
 
     private static let hasOfferedHookSetupKey = "hasOfferedHookSetup"
 
@@ -49,15 +52,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // menu-bar-only, no Dock icon
 
+        _ = historyStore // start listening for session-end events immediately
+        _ = progressStore
+
         var createdPanel: PetPanel?
         let panel = PetPanel(rootView: PetView(
-            store: store, library: library, animator: animator,
+            store: store, library: library, animator: animator, progressStore: progressStore,
             onOpenTray: { [weak self] in self?.toggleTray() },
             onSizeChange: { size in createdPanel?.fitToContent(size) }
         ))
         createdPanel = panel
         self.panel = panel
-        animator.attach(panel: panel, store: store)
+        animator.attach(panel: panel, store: store, library: library)
 
         setupStatusItem()
         applyMode()
@@ -73,9 +79,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         notifications.requestAuthorization()
-        _ = historyStore // start listening for session-end events immediately
         wireAlerts()
         maybeOfferHookSetupOnFirstRun()
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            if let panel = self.panel, !self.multiSessionMode {
+                let origin = PetPanel.cornerOrigin(on: PetPanel.targetScreen(), panelSize: panel.frame.size, margin: 24)
+                panel.setFrameOrigin(origin)
+            }
+            self.multiPetController.relayoutForScreenChange()
+        }
     }
 
     // MARK: - Alerts (notifications, sound, menu-bar icon)
@@ -111,6 +127,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 seenRequestIds = seenRequestIds.intersection(requests.values.map(\.requestId))
             }
             .store(in: &cancellables)
+
+        budgetDigestTimer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
+            self?.checkBudgetAndDigest()
+        }
+        checkBudgetAndDigest()
+    }
+
+    /// Checked every 10 minutes (not event-driven - both a running daily
+    /// budget and a weekly digest are about elapsed time, not any single
+    /// session event) while the app is running.
+    private func checkBudgetAndDigest() {
+        checkWeeklyDigest()
+        checkBudgetAlert()
+    }
+
+    private func checkWeeklyDigest() {
+        guard settings.weeklyDigestEnabled else { return }
+        let now = Date()
+        guard let last = settings.lastDigestSentAt else {
+            settings.lastDigestSentAt = now // baseline only - no digest for a week with no history yet
+            return
+        }
+        guard now.timeIntervalSince(last) >= 7 * 24 * 3600 else { return }
+        let stats = historyStore.loadStats(now: now)
+        let costUSD = historyStore.loadDailyBuckets(days: 7, now: now).reduce(0) { $0 + $1.costUSD }
+        notifications.notifyWeeklyDigest(
+            sessions: stats.sessionsThisWeek, tasksCompleted: stats.tasksCompletedThisWeek,
+            secondsWorked: stats.secondsWorkedThisWeek, costUSD: costUSD
+        )
+        settings.lastDigestSentAt = now
+    }
+
+    private func checkBudgetAlert() {
+        guard settings.budgetAlertsEnabled, settings.dailyBudgetUSD > 0 else { return }
+        let now = Date()
+        if let last = settings.lastBudgetAlertDate, Calendar.current.isDate(last, inSameDayAs: now) { return }
+        let recordedSpend = historyStore.todaysRecordedSpendUSD(now: now)
+        let activeIds = store.sessions.map(\.sessionId)
+        let threshold = settings.dailyBudgetUSD
+        let notifications = self.notifications
+        let settings = self.settings
+        Task.detached(priority: .utility) {
+            let liveSpend = activeIds.reduce(0.0) { $0 + (TranscriptUsage.totals(forSession: $1)?.estimatedCostUSD ?? 0) }
+            let total = recordedSpend + liveSpend
+            guard total >= threshold else { return }
+            await MainActor.run {
+                notifications.notifyBudgetExceeded(spendUSD: total, thresholdUSD: threshold)
+                settings.lastBudgetAlertDate = now
+            }
+        }
     }
 
     /// "Is there already an on-screen surface showing this?" - a notification
@@ -142,7 +208,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alreadyWired = HookInstaller.diagnose().contains { $0.title.contains("wired") && $0.status == .ok }
         guard !alreadyWired else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            self?.showHookSetup()
+            self?.showOnboarding()
+        }
+    }
+
+    @objc private func showOnboarding() {
+        showUtilityWindow(&onboardingWindow, title: "Welcome to ClaudePet") {
+            OnboardingView(onFinished: { [weak self] in
+                self?.onboardingWindow?.close()
+                self?.showHookSetup()
+            })
         }
     }
 
@@ -155,29 +230,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        let toggleItem = NSMenuItem(title: "Tuck Away Pet (⌘⇧P)", action: #selector(toggleVisibility), keyEquivalent: "")
+        let toggleItem = NSMenuItem(title: L("menu.tuckAway"), action: #selector(toggleVisibility), keyEquivalent: "")
         menu.addItem(toggleItem)
         self.toggleMenuItem = toggleItem
-        menu.addItem(withTitle: "Jump to Session… (⌘⇧K)", action: #selector(toggleCommandPalette), keyEquivalent: "")
+        menu.addItem(withTitle: L("menu.jumpToSession"), action: #selector(toggleCommandPalette), keyEquivalent: "")
         menu.addItem(.separator())
-        let multiItem = NSMenuItem(title: "Multi-Session Pets", action: #selector(toggleMultiSessionMode), keyEquivalent: "")
+        let multiItem = NSMenuItem(title: L("menu.multiSessionPets"), action: #selector(toggleMultiSessionMode), keyEquivalent: "")
         multiItem.target = self
         menu.addItem(multiItem)
         self.multiSessionMenuItem = multiItem
-        let wanderItem = NSMenuItem(title: "Wander When Idle", action: #selector(toggleWander), keyEquivalent: "")
+        let wanderItem = NSMenuItem(title: L("menu.wanderWhenIdle"), action: #selector(toggleWander), keyEquivalent: "")
         wanderItem.target = self
         wanderItem.state = animator.wanderEnabled ? .on : .off
         menu.addItem(wanderItem)
         self.wanderMenuItem = wanderItem
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Pet Gallery…", action: #selector(showGallery), keyEquivalent: "")
-        menu.addItem(withTitle: "Session Stats…", action: #selector(showStats), keyEquivalent: "")
-        menu.addItem(withTitle: "Hook Setup & Diagnostics…", action: #selector(showHookSetup), keyEquivalent: "")
-        menu.addItem(withTitle: "Preferences…", action: #selector(showPreferences), keyEquivalent: ",")
+        menu.addItem(withTitle: L("menu.petGallery"), action: #selector(showGallery), keyEquivalent: "")
+        menu.addItem(withTitle: L("menu.sessionStats"), action: #selector(showStats), keyEquivalent: "")
+        menu.addItem(withTitle: L("menu.hookSetup"), action: #selector(showHookSetup), keyEquivalent: "")
+        menu.addItem(withTitle: L("menu.welcomeTour"), action: #selector(showOnboarding), keyEquivalent: "")
+        menu.addItem(withTitle: L("menu.preferences"), action: #selector(showPreferences), keyEquivalent: ",")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        menu.addItem(withTitle: L("menu.checkForUpdates"), action: #selector(checkForUpdates), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Claude Pet", action: #selector(quit), keyEquivalent: "q")
+        menu.addItem(withTitle: L("menu.quit"), action: #selector(quit), keyEquivalent: "q")
         for menuItem in menu.items { menuItem.target = self }
         item.menu = menu
 
@@ -199,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateToggleTitle() {
         let visible = multiSessionMode ? multiPetController.isActive : (panel?.isVisible ?? false)
-        toggleMenuItem?.title = visible ? "Tuck Away Pet (⌘⇧P)" : "Wake Pet (⌘⇧P)"
+        toggleMenuItem?.title = visible ? L("menu.tuckAway") : L("menu.wakePet")
     }
 
     @objc private func toggleMultiSessionMode() {
@@ -214,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             guard let panel else { return }
             if panel.isVisible {
+                hideTray() // the tray is anchored to the pet - don't leave it floating alone
                 panel.animateOut()
             } else {
                 panel.animateIn()
@@ -261,12 +338,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             trayPanel = tray
         }
         guard let tray = trayPanel else { return }
-        let origin = NSPoint(x: panel.frame.origin.x + panel.frame.width - 260, y: panel.frame.maxY + 8)
-        tray.setFrameOrigin(origin)
+        repositionTray(tray, relativeTo: panel)
+        // Attach as a child window so AppKit moves the tray in lockstep with
+        // the pet at the window-server level - same frame, no lag. A
+        // didMove-notification-based follow (the previous approach) only
+        // repositions reactively after each tick, which visibly stutters
+        // during a live drag.
+        panel.addChildWindow(tray, ordered: .above)
         tray.animateIn { tray.makeKey() }
     }
 
+    private func repositionTray(_ tray: PetPanel, relativeTo panel: PetPanel) {
+        let origin = NSPoint(x: panel.frame.origin.x + panel.frame.width - 260, y: panel.frame.maxY + 8)
+        tray.setFrameOrigin(origin)
+    }
+
     private func hideTray() {
+        if let trayPanel, let panel { panel.removeChildWindow(trayPanel) }
         trayPanel?.animateOut()
     }
 
@@ -336,14 +424,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             StatsView(
                 stats: self.historyStore.loadStats(),
                 activeSessionIds: self.store.sessions.map(\.sessionId),
-                decodeWarning: self.store.lastDecodeWarning
+                decodeWarning: self.store.lastDecodeWarning,
+                progress: self.historyStore.loadProgress(),
+                dailyBuckets: self.historyStore.loadDailyBuckets(days: 14),
+                projectTotals: self.historyStore.loadProjectTotals()
             )
         }
     }
 
     @objc private func showGallery() {
         showUtilityWindow(&galleryWindow, title: "Pet Gallery") {
-            PetGalleryView(library: self.library)
+            let projectKeys = Set(self.store.sessions.map {
+                PetIdentity.identityKey(sessionId: $0.sessionId, cwd: $0.cwd, groupByProject: true)
+            }).sorted()
+            PetGalleryView(library: self.library, projectKeys: projectKeys)
         }
     }
 

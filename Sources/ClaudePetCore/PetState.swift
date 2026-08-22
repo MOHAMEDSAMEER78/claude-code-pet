@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PetState: String, Codable {
+public enum PetState: String, Codable, CaseIterable {
     case idle
     case running
     case waitingPermission = "waiting-permission"
