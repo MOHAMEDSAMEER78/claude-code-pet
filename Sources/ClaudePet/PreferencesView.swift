@@ -33,6 +33,8 @@ private struct GeneralPreferencesView: View {
                 Toggle("Multi-Session Pets (one pet per session)", isOn: $settings.multiSessionMode)
                 Toggle("Name pets by project (not session)", isOn: $settings.groupPetsByProject)
                 Toggle("Group Activity Tray by project", isOn: $settings.groupTrayByProject)
+                Toggle("Show Claude usage quota in menu bar dropdown", isOn: $settings.showUsageInMenuBar)
+                    .help("Requires Claude Usage Tracking to be enabled in Hook Setup & Diagnostics")
             }
             Section("Startup") {
                 Toggle("Launch ClaudePet at login", isOn: Binding(
@@ -100,6 +102,7 @@ private struct AlertsPreferencesView: View {
                 Toggle("fails", isOn: $settings.notifyOnFailed)
                 Toggle("is ready for review", isOn: $settings.notifyOnReview)
                 Toggle("starts running", isOn: $settings.notifyOnRunning)
+                Toggle("completes (session ends)", isOn: $settings.notifyOnSessionEnd)
             }
             .disabled(!settings.notificationsEnabled)
             Section("Budget") {

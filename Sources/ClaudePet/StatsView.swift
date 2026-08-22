@@ -112,7 +112,7 @@ struct StatsView: View {
     private func quotaTile(_ label: String, usedPct: Double?) -> some View {
         let used = usedPct ?? 0
         let remaining = max(0, 100 - used)
-        let color: Color = used >= 80 ? .red : (used >= 50 ? .yellow : .green)
+        let color: Color = used >= 80 ? .red : (used >= 50 ? .orange : .green)
         return VStack(alignment: .leading, spacing: 2) {
             Text(usedPct == nil ? "—" : "\(Int(remaining))% left")
                 .font(.system(size: 16, weight: .semibold, design: .rounded))

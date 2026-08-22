@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var progressStore = PetProgressStore(sessionStore: store, historyStore: historyStore)
     private lazy var multiPetController = MultiPetController(store: store, library: library)
     private var toggleMenuItem: NSMenuItem?
+    private var usageMenuItem: NSMenuItem?
+    private var usageSeparatorItem: NSMenuItem?
     private var multiSessionMenuItem: NSMenuItem?
     private var wanderMenuItem: NSMenuItem?
     private var trayPanel: PetPanel?
@@ -41,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindow: NSWindow?
     private var cancellables: Set<AnyCancellable> = []
     private var budgetDigestTimer: Timer?
+    private var menuBarUsageTimer: Timer?
 
     private static let hasOfferedHookSetupKey = "hasOfferedHookSetup"
 
@@ -115,6 +118,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] state in self?.updateMenuBarIcon(for: state) }
             .store(in: &cancellables)
 
+        store.sessionEnded
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] session in
+                guard let self else { return }
+                let name = session.title ?? "Claude Code session"
+                let duration = session.startedTs.map { Date().timeIntervalSince1970 - $0 }
+                self.notifications.notifySessionCompleted(
+                    name: name, finalState: session.state, cwd: session.cwd,
+                    tasksCompleted: session.tasksDone ?? 0,
+                    tasksTotal: session.tasksTotal ?? 0, durationSeconds: duration
+                )
+            }
+            .store(in: &cancellables)
+
         var seenRequestIds: Set<String> = []
         permissions.$requestsBySession
             .receive(on: DispatchQueue.main)
@@ -132,6 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.checkBudgetAndDigest()
         }
         checkBudgetAndDigest()
+
+        menuBarUsageTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.refreshMenuBarUsage()
+        }
+        refreshMenuBarUsage()
     }
 
     /// Checked every 10 minutes (not event-driven - both a running daily
@@ -193,6 +215,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.contentTintColor = tintColor(for: state)
     }
 
+    /// Shows a "⚡ N% 5h left  📅 N% 7d left" row inside the dropdown menu
+    /// when usage tracking (the opt-in statusLine wrapper) is enabled and
+    /// has data - the menu bar icon itself stays untouched. The row (and
+    /// its separator) stays hidden entirely otherwise, rather than showing
+    /// a stale/blank line. Percentages are bold and color-coded (green/
+    /// orange/red by how much is left), matching the same thresholds as
+    /// the quota tiles in Session Stats.
+    private func refreshMenuBarUsage() {
+        guard settings.showUsageInMenuBar, let usage = ClaudeUsageStore.load(),
+              let fiveHourUsed = usage.fiveHourUsedPct
+        else {
+            usageMenuItem?.isHidden = true
+            usageSeparatorItem?.isHidden = true
+            return
+        }
+        let title = NSMutableAttributedString()
+        title.append(usageSegment(symbol: "⚡", label: "5h", usedPct: fiveHourUsed))
+        if let sevenDayUsed = usage.sevenDayUsedPct {
+            title.append(NSAttributedString(string: "   "))
+            title.append(usageSegment(symbol: "📅", label: "7d", usedPct: sevenDayUsed))
+        }
+        usageMenuItem?.attributedTitle = title
+        usageMenuItem?.isHidden = false
+        usageSeparatorItem?.isHidden = false
+    }
+
+    private func usageSegment(symbol: String, label: String, usedPct: Double) -> NSAttributedString {
+        let remaining = max(0, 100 - Int(usedPct))
+        let color: NSColor = remaining <= 20 ? .systemRed : (remaining <= 50 ? .systemOrange : .systemGreen)
+        let baseFont = NSFont.menuFont(ofSize: 0)
+        let result = NSMutableAttributedString(string: "\(symbol) ", attributes: [.font: baseFont])
+        result.append(NSAttributedString(
+            string: "\(remaining)%",
+            attributes: [.font: NSFont.boldSystemFont(ofSize: baseFont.pointSize), .foregroundColor: color]
+        ))
+        result.append(NSAttributedString(string: " \(label) left", attributes: [.font: baseFont]))
+        return result
+    }
+
     private func tintColor(for state: PetState) -> NSColor? {
         switch state {
         case .waitingPermission: return .systemOrange
@@ -230,6 +291,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
+        // Read-only summary row, shown only while usage tracking has data -
+        // hidden (not just blank) otherwise, so it doesn't clutter the menu
+        // for anyone who hasn't enabled that opt-in feature.
+        let usageItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        usageItem.isEnabled = false
+        usageItem.isHidden = true
+        menu.addItem(usageItem)
+        self.usageMenuItem = usageItem
+        let usageSeparator = NSMenuItem.separator()
+        usageSeparator.isHidden = true
+        menu.addItem(usageSeparator)
+        self.usageSeparatorItem = usageSeparator
+
         let toggleItem = NSMenuItem(title: L("menu.tuckAway"), action: #selector(toggleVisibility), keyEquivalent: "")
         menu.addItem(toggleItem)
         self.toggleMenuItem = toggleItem
