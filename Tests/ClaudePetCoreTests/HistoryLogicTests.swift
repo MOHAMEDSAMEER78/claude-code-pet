@@ -113,7 +113,7 @@ struct HistoryLogicTests {
 
     @Test func progressLevelsUpPastXpThreshold() {
         // 10 sessions * 5 xp each + enough tasks to clear the level-1 threshold (100 xp).
-        let entries = (0..<10).map { entry(ts: referenceNow.timeIntervalSince1970, tasksCompleted: 5) }
+        let entries = (0..<10).map { _ in entry(ts: referenceNow.timeIntervalSince1970, tasksCompleted: 5) }
         let progress = HistoryLogic.progress(from: entries, now: referenceNow, calendar: calendar)
         #expect(progress.xp == 550)
         #expect(progress.level == 2) // sqrt(550/100) = sqrt(5.5) ~= 2.34 -> 2
