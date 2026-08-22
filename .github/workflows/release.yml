@@ -96,7 +96,7 @@ jobs:
           BRANCH="release/generated-updates"
           git checkout -B "$BRANCH"
           git commit -m "Update cask and appcast for ${{ github.ref_name }}"
-          git push origin "$BRANCH" --force-with-lease
+          git push origin "$BRANCH" --force
           if ! gh pr view "$BRANCH" >/dev/null 2>&1; then
             gh pr create --base main --head "$BRANCH" \
               --title "Update cask and appcast (auto-generated)" \
