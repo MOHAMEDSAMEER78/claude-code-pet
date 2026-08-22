@@ -1,0 +1,30 @@
+# Configures GitHub's auto-generated release notes (release.yml's
+# `generate_release_notes: true` step). Groups the "What's Changed" list by
+# PR label instead of one flat list, and GitHub always appends contributor
+# attribution ("by @user in #123") and a "New Contributors" section on its
+# own - this file only controls the grouping/headings, not whether
+# contributors show up.
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+  categories:
+    - title: 🚀 Features
+      labels:
+        - enhancement
+        - feature
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+        - fix
+    - title: 🧰 Maintenance
+      labels:
+        - chore
+        - dependencies
+        - ci
+    - title: 📝 Documentation
+      labels:
+        - documentation
+    - title: Other Changes
+      labels:
+        - "*"

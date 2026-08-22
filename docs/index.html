@@ -3,46 +3,62 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ClaudePet — a desktop pet for Claude Code</title>
-<meta name="description" content="ClaudePet is a free, open-source macOS menu-bar companion that reacts to your Claude Code sessions in real time — idle, working, needs permission, ready for review, or failed.">
-<meta property="og:title" content="ClaudePet — a desktop pet for Claude Code">
+<title>ClaudePet — a desktop companion for Claude Code</title>
+<meta name="description" content="ClaudePet is a free, open-source macOS menu-bar companion that reacts to your Claude Code sessions in real time, tracks your usage quota, remembers your streaks, and taps you on the shoulder only when it matters.">
+<meta property="og:title" content="ClaudePet — a desktop companion for Claude Code">
 <meta property="og:description" content="A floating macOS companion that reacts to your Claude Code sessions in real time. Free and open source.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://mohamedsameer78.github.io/claudepet/assets/apple-touch-icon.png?v=2">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=2">
-<link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png?v=2">
-<link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=2">
+<meta property="og:image" content="https://mohamedsameer78.github.io/claudepet/assets/apple-touch-icon.png?v=3">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=3">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png?v=3">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3">
 <style>
   :root {
-    /* Palette lifted directly from the app icon: a coral-to-terracotta
-       gradient (#e78e72 -> #d57054) with a cream pawprint (#fbf5eb). */
-    --bg: #faf5ee;
+    /* Palette lifted from the app icon: a coral-to-terracotta gradient
+       (#e78e72 -> #d57054) with a cream pawprint (#fbf5eb). Kept as the
+       brand's identity, but the layout/type/motion around it is pushed
+       toward a bigger, quieter, more confident "one idea per screen"
+       rhythm - alternating light/dark full-bleed sections, oversized
+       headlines, generous vertical space. */
+    --bg: #faf6f1;
     --surface: #ffffff;
     --surface-2: #f4ece1;
-    --border: rgba(45, 26, 16, 0.10);
-    --text: #271811;
-    --text-2: rgba(39, 24, 17, 0.62);
-    --text-3: rgba(39, 24, 17, 0.42);
+    --border: rgba(45, 26, 16, 0.09);
+    --text: #241610;
+    --text-2: rgba(36, 22, 16, 0.62);
+    --text-3: rgba(36, 22, 16, 0.42);
     --accent: #b34a2d;
     --accent-ink: #ffffff;
     --accent-soft: #f6e0d3;
     --icon-from: #e78e72;
     --icon-to: #d57054;
-    --code-bg: #271711;
+    --ink-bg: #170f0a;
+    --ink-surface: #211610;
+    --ink-border: rgba(255, 232, 217, 0.10);
+    --ink-text: #f7ece1;
+    --ink-text-2: rgba(247, 236, 225, 0.66);
+    --ink-text-3: rgba(247, 236, 225, 0.42);
+    --code-bg: #1c130d;
     --code-text: #f8e2cd;
     --code-text-2: rgba(248, 226, 205, 0.55);
-    --shadow: 0 1px 2px rgba(40,20,10,0.05), 0 16px 40px -20px rgba(40,20,10,0.22);
+    --shadow: 0 1px 2px rgba(40,20,10,0.05), 0 24px 60px -28px rgba(40,20,10,0.28);
+    --shadow-ink: 0 1px 2px rgba(0,0,0,0.4), 0 30px 70px -30px rgba(0,0,0,0.7);
     --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
-    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", ui-sans-serif, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
-    /* The pet's own five-state vocabulary (PetState.swift) - reused
-       throughout the page as the accent language instead of one flat
-       brand color, since the whole product IS this state machine. */
+    /* The pet's own state vocabulary (PetState.swift) - the accent
+       language used throughout instead of one flat brand color, since the
+       product IS this state machine. */
     --s-idle: #8a8073;
     --s-running: #a3791b;
     --s-waiting: #ab3f30;
     --s-review: #1f8a58;
     --s-failed: #7d3ba8;
+    --s-idle-ink: #b5aa98;
+    --s-running-ink: #dbab3f;
+    --s-waiting-ink: #e2705d;
+    --s-review-ink: #3fbf82;
+    --s-failed-ink: #b57fe0;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -60,12 +76,6 @@
       --code-text: #fbdec4;
       --code-text-2: rgba(251, 222, 196, 0.5);
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 24px 56px -24px rgba(0,0,0,0.65);
-
-      --s-idle: #9b9184;
-      --s-running: #dbab3f;
-      --s-waiting: #e2705d;
-      --s-review: #3fbf82;
-      --s-failed: #b57fe0;
     }
   }
   * { box-sizing: border-box; }
@@ -80,174 +90,328 @@
     overflow-x: hidden;
   }
   a { color: inherit; }
-  .wrap { max-width: 1080px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+  .wrap-narrow { max-width: 760px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
   ::selection { background: var(--accent-soft); }
+  img { max-width: 100%; }
 
   /* ---------- nav ---------- */
   header.nav {
-    position: sticky; top: 0; z-index: 20;
-    background: color-mix(in srgb, var(--bg) 80%, transparent);
-    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 30;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border);
   }
   .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; text-decoration: none; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15.5px; letter-spacing: -0.01em; text-decoration: none; }
   .brand-mark {
-    width: 26px; height: 26px; border-radius: 8px; flex: none;
+    width: 27px; height: 27px; border-radius: 8px; flex: none;
     background: linear-gradient(160deg, var(--icon-from), var(--icon-to));
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 6px -2px rgba(180,74,45,0.55);
+    box-shadow: 0 2px 8px -2px rgba(180,74,45,0.55);
   }
   .brand-mark svg { width: 15px; height: 15px; }
-  .nav-links { display: flex; align-items: center; gap: 18px; font-size: 14px; }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
   .nav-links a.ghost { color: var(--text-2); text-decoration: none; }
   .nav-links a.ghost:hover { color: var(--text); }
+  .nav-links .sep { width: 1px; height: 16px; background: var(--border); }
 
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 18px; border-radius: 10px;
-    font-size: 14px; font-weight: 600; text-decoration: none;
+    padding: 12px 20px; border-radius: 980px;
+    font-size: 14.5px; font-weight: 600; text-decoration: none;
     border: 1px solid transparent;
-    white-space: nowrap; transition: transform 0.15s ease, box-shadow 0.15s ease;
+    white-space: nowrap; transition: transform 0.18s cubic-bezier(.2,.8,.2,1), box-shadow 0.18s ease, opacity 0.18s ease;
   }
-  .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent); }
-  .btn-primary:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 75%, transparent); }
+  .btn-primary:hover { transform: translateY(-1px) scale(1.01); }
   .btn-secondary { background: transparent; color: var(--text); border-color: var(--border); }
   .btn-secondary:hover { border-color: var(--text-3); }
+  .btn-ghost-ink { background: rgba(255,255,255,0.08); color: var(--ink-text); border-color: rgba(255,255,255,0.14); }
+  .btn-ghost-ink:hover { background: rgba(255,255,255,0.14); }
+  .btn.small { padding: 9px 16px; font-size: 13.5px; }
   .btn svg { width: 15px; height: 15px; }
 
   .eyebrow {
     font-family: var(--mono); font-size: 12px; font-weight: 600;
     letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent);
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
   }
+  .eyebrow.left { justify-content: flex-start; }
   .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .eyebrow.on-ink { color: var(--icon-from); }
 
-  section { padding: 74px 0; }
-  .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  section { padding: 128px 0; }
+  @media (max-width: 720px) { section { padding: 84px 0; } }
+
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s cubic-bezier(.2,.7,.2,1), transform 0.7s cubic-bezier(.2,.7,.2,1); }
   .reveal.in { opacity: 1; transform: none; }
+  .reveal.d1.in { transition-delay: 0.08s; }
+  .reveal.d2.in { transition-delay: 0.16s; }
+  .reveal.d3.in { transition-delay: 0.24s; }
   @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
 
+  .center { text-align: center; }
+  h1, h2, h3 { font-weight: 700; letter-spacing: -0.02em; }
+  .kicker-h2 { text-align: center; max-width: 640px; margin: 0 auto 64px; }
+  h2 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; margin: 14px 0 14px; text-wrap: balance; }
+  .section-lede { font-size: 18px; color: var(--text-2); margin: 0; text-wrap: balance; }
+  .section-lede.ink { color: var(--ink-text-2); }
+
   /* ---------- hero ---------- */
-  .hero { padding-top: 68px; padding-bottom: 30px; }
-  .hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
-  h1 {
-    font-family: var(--mono); font-size: clamp(34px, 4.8vw, 54px);
-    line-height: 1.06; letter-spacing: -0.02em; margin: 16px 0 18px;
-    text-wrap: balance;
+  .hero { padding-top: 96px; padding-bottom: 56px; text-align: center; }
+  .hero .eyebrow { margin-bottom: 20px; }
+  h1.hero-h1 {
+    font-size: clamp(42px, 7vw, 80px);
+    line-height: 1.02; letter-spacing: -0.03em; margin: 0 auto 22px;
+    max-width: 900px; text-wrap: balance;
   }
-  h1 .cursor { display: inline-block; width: 0.5em; background: var(--accent); animation: blink 1.1s steps(1) infinite; margin-left: 2px; }
-  @keyframes blink { 50% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { h1 .cursor { animation: none; } }
-  .lede { font-size: 17.5px; color: var(--text-2); max-width: 46ch; margin: 0 0 26px; }
-  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  .version-tag { font-family: var(--mono); font-size: 12px; color: var(--text-2); margin-top: 16px; }
+  h1.hero-h1 .grad {
+    background: linear-gradient(120deg, var(--icon-from), var(--accent));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { font-size: 20px; color: var(--text-2); max-width: 560px; margin: 0 auto 34px; text-wrap: balance; }
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .version-tag { font-family: var(--mono); font-size: 12.5px; color: var(--text-3); margin-top: 20px; }
   .version-tag a { color: var(--accent); text-decoration: none; }
   .version-tag a:hover { text-decoration: underline; }
 
-  /* ---------- live pet demo ---------- */
-  .demo-stage { display: flex; justify-content: center; }
-  .demo-card {
-    width: 100%; max-width: 320px; border-radius: 22px;
-    background: linear-gradient(165deg, #241a14, #100b08);
-    border: 1px solid rgba(255,232,217,0.08);
-    padding: 30px 24px 26px; box-shadow: var(--shadow);
-    display: flex; flex-direction: column; align-items: center; gap: 18px;
-    position: relative; overflow: hidden;
+  /* ---------- hero visual: floating pet card ---------- */
+  .hero-stage { display: flex; justify-content: center; margin-top: 72px; position: relative; }
+  .hero-stage::before {
+    content: ""; position: absolute; top: -80px; left: 50%; transform: translateX(-50%);
+    width: 900px; height: 480px; max-width: 140vw;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--demo-glow, var(--s-idle)) 30%, transparent), transparent 72%);
+    filter: blur(20px); opacity: 0.55; pointer-events: none; z-index: 0;
+    transition: background 0.6s ease;
   }
-  .demo-card::before {
-    content: ""; position: absolute; inset: -40% -40% auto -40%; height: 70%;
-    background: radial-gradient(closest-side, var(--demo-glow, var(--s-idle)), transparent 70%);
-    opacity: 0.22; filter: blur(10px); transition: background 0.6s ease;
+  .pet-card {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 300px; border-radius: 26px;
+    background: linear-gradient(165deg, #241a14, #100b08);
+    border: 1px solid rgba(255,232,217,0.09);
+    padding: 26px 22px 22px; box-shadow: var(--shadow-ink);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
   }
   .shot-frame {
-    position: relative; width: 100%; aspect-ratio: 600 / 680; z-index: 1;
-    border-radius: 16px; overflow: hidden; background: #1b140f;
-    box-shadow: 0 14px 30px -18px rgba(0,0,0,0.6);
+    position: relative; width: 100%; aspect-ratio: 600 / 680;
+    border-radius: 18px; overflow: hidden; background: #1b140f;
+    box-shadow: 0 18px 36px -20px rgba(0,0,0,0.65);
   }
   .shot-img {
     position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-    opacity: 0; transition: opacity 0.7s ease;
+    opacity: 0; transition: opacity 0.8s ease;
   }
   .shot-img.is-active { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .shot-img { transition: none; } }
   .demo-pill {
     font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
-    color: var(--demo-glow, var(--s-idle)); background: color-mix(in srgb, var(--demo-glow, var(--s-idle)) 16%, transparent);
-    border: 1px solid color-mix(in srgb, var(--demo-glow, var(--s-idle)) 40%, transparent);
-    padding: 4px 10px; border-radius: 999px; z-index: 1; transition: color 0.5s ease, background 0.5s ease, border-color 0.5s ease;
+    color: var(--demo-glow, var(--s-idle-ink)); background: color-mix(in srgb, var(--demo-glow, var(--s-idle-ink)) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--demo-glow, var(--s-idle-ink)) 40%, transparent);
+    padding: 5px 12px; border-radius: 999px; transition: color 0.5s ease, background 0.5s ease, border-color 0.5s ease;
   }
-  .demo-caption { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); text-align: center; margin-top: 10px; max-width: 30ch; }
+  .demo-caption { font-family: var(--mono); font-size: 11px; color: rgba(247,236,225,0.4); text-align: center; margin: 0; max-width: 30ch; }
 
-  /* ---------- state machine grid (real screenshots) ---------- */
-  .state-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 34px; }
-  .state-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+  /* ---------- ink (dark spotlight) sections ---------- */
+  .ink { background: var(--ink-bg); color: var(--ink-text); }
+  .ink h2 { color: var(--ink-text); }
+  .ink .eyebrow { color: var(--icon-from); }
+
+  .big-statement {
+    font-size: clamp(30px, 5vw, 56px); line-height: 1.08; letter-spacing: -0.025em;
+    text-align: center; max-width: 880px; margin: 0 auto; text-wrap: balance;
+  }
+  .big-statement .dim { color: var(--ink-text-3); }
+
+  /* ---------- notification mockups ---------- */
+  .notif-stack { display: flex; flex-direction: column; gap: 14px; max-width: 420px; margin: 0 auto; }
+  .notif {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 16px; padding: 14px 16px; backdrop-filter: blur(6px);
+  }
+  .notif .icon {
+    width: 34px; height: 34px; border-radius: 9px; flex: none;
+    background: linear-gradient(160deg, var(--icon-from), var(--icon-to));
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .notif .body { min-width: 0; }
+  .notif .title { font-size: 13.5px; font-weight: 700; color: var(--ink-text); display: flex; justify-content: space-between; gap: 8px; }
+  .notif .title time { font-weight: 400; color: var(--ink-text-3); font-size: 11px; flex: none; }
+  .notif .subtitle { font-size: 12px; color: var(--ink-text-3); margin-top: 1px; }
+  .notif .msg { font-size: 12.5px; color: var(--ink-text-2); margin-top: 3px; }
+
+  /* ---------- feature spotlight grid (icon + headline + copy) ---------- */
+  .spot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 64px; }
+  .spot-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 30px 26px; box-shadow: var(--shadow);
+  }
+  .spot-card .glyph {
+    width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 18px;
+  }
+  .spot-card h3 { font-size: 17px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .spot-card p { font-size: 14px; color: var(--text-2); margin: 0; }
+  @media (max-width: 900px) { .spot-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 620px) { .spot-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- two-up story block (visual + copy, alternating) ---------- */
+  .story { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .story.reverse .story-visual { order: 2; }
+  .story-eyebrow { margin-bottom: 16px; }
+  .story h2 { margin-top: 0; }
+  .story ul.check-list { list-style: none; margin: 24px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .story ul.check-list li { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; color: var(--text-2); }
+  .story ul.check-list li svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--accent); }
+  .story ul.check-list b { color: var(--text); font-weight: 600; }
+  @media (max-width: 900px) {
+    .story, .story.reverse { grid-template-columns: 1fr; gap: 36px; }
+    .story.reverse .story-visual { order: -1; }
+  }
+
+  /* ---------- streak / mood badge mockup ---------- */
+  .mood-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
+    box-shadow: var(--shadow); padding: 28px; display: flex; flex-direction: column; gap: 20px;
+  }
+  .mood-row { display: flex; align-items: center; justify-content: space-between; }
+  .mood-title { font-size: 13px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .badge-pair { display: flex; gap: 8px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+  .badge.fire { background: color-mix(in srgb, #e2705d 16%, transparent); color: #c2543f; }
+  .badge.star { background: color-mix(in srgb, #dbab3f 20%, transparent); color: #a3791b; }
+  .skin-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .skin-chip {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px 8px 8px; border-radius: 999px;
+    background: var(--surface-2); border: 1px solid var(--border); font-size: 12.5px; color: var(--text-2);
+  }
+  .skin-chip .avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; background: var(--bg); }
+
+  /* ---------- menu bar dropdown mockup ---------- */
+  .menu-mock {
+    width: 100%; max-width: 300px; margin: 0 auto;
+    background: rgba(30,22,16,0.92); border: 1px solid rgba(255,232,217,0.1); border-radius: 14px;
+    box-shadow: var(--shadow-ink); overflow: hidden; backdrop-filter: blur(20px);
+    font-size: 13px;
+  }
+  .menu-mock .row { padding: 9px 14px; color: rgba(247,236,225,0.86); display: flex; justify-content: space-between; }
+  .menu-mock .row.usage b.g { color: #3fbf82; }
+  .menu-mock .row.usage b.y { color: #dbab3f; }
+  .menu-mock .row.dim { color: rgba(247,236,225,0.4); }
+  .menu-mock .divider { height: 1px; background: rgba(255,232,217,0.09); margin: 5px 0; }
+
+  /* ---------- spend chart mockup ---------- */
+  .chart-mock { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 26px; box-shadow: var(--shadow); }
+  .chart-mock .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .chart-mock .chart-head .amt { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .chart-mock .chart-head .lbl { font-size: 12px; color: var(--text-3); }
+  .bars { display: flex; align-items: flex-end; gap: 8px; height: 96px; }
+  .bars .bar { flex: 1; background: linear-gradient(180deg, var(--icon-from), var(--icon-to)); border-radius: 5px 5px 2px 2px; opacity: 0.85; }
+  .bars .bar.peak { opacity: 1; }
+  .quota-tiles { display: flex; gap: 12px; margin-top: 20px; }
+  .quota-tile { flex: 1; background: var(--surface-2); border-radius: 12px; padding: 12px 14px; }
+  .quota-tile .pct { font-size: 18px; font-weight: 700; }
+  .quota-tile .lbl { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  /* ---------- context menu mockup ---------- */
+  .ctx-mock {
+    width: 100%; max-width: 260px; margin: 0 auto;
+    background: rgba(30,22,16,0.94); border: 1px solid rgba(255,232,217,0.1); border-radius: 12px;
+    box-shadow: var(--shadow-ink); overflow: hidden; font-size: 13px;
+  }
+  .ctx-mock .row { padding: 9px 14px; color: rgba(247,236,225,0.88); display: flex; align-items: center; gap: 9px; }
+  .ctx-mock .row.danger { color: #e2705d; }
+  .ctx-mock .row svg { width: 14px; height: 14px; opacity: 0.7; flex: none; }
+  .ctx-mock .divider { height: 1px; background: rgba(255,232,217,0.09); margin: 5px 0; }
+
+  /* ---------- state showcase ---------- */
+  .state-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 56px; }
+  .state-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
   .state-card .bar { height: 4px; }
   .state-card .shot { aspect-ratio: 600 / 680; background: #1b140f; }
   .state-card .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .state-card .meta { padding: 14px 16px 16px; }
-  .state-card h3 { font-size: 14.5px; margin: 0 0 4px; }
+  .state-card .meta { padding: 16px 18px 18px; }
+  .state-card h3 { font-size: 15px; margin: 0 0 4px; }
   .state-card .tag2 { font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); margin: 0; }
-  .state-note { font-size: 13.5px; color: var(--text-2); margin-top: 22px; }
+  .state-note { font-size: 13.5px; color: var(--text-2); margin-top: 26px; text-align: center; }
   @media (max-width: 860px) { .state-grid { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 520px) { .state-grid { grid-template-columns: 1fr; } }
 
-  /* ---------- state legend ---------- */
-  .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin-top: 44px; padding-top: 34px; border-top: 1px solid var(--border); }
+  .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin-top: 52px; }
   .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
   .legend-item .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
   /* ---------- terminal window chrome ---------- */
   .term {
-    background: var(--code-bg); border-radius: 14px; overflow: hidden;
+    background: var(--code-bg); border-radius: 16px; overflow: hidden;
     border: 1px solid rgba(255,232,217,0.08); box-shadow: var(--shadow);
   }
-  .term-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; background: rgba(255,232,217,0.04); border-bottom: 1px solid rgba(255,232,217,0.06); }
+  .term-bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; background: rgba(255,232,217,0.04); border-bottom: 1px solid rgba(255,232,217,0.06); }
   .term-bar span { width: 10px; height: 10px; border-radius: 50%; }
   .term-bar span:nth-child(1) { background: #e2705d; }
   .term-bar span:nth-child(2) { background: #dbab3f; }
   .term-bar span:nth-child(3) { background: #3fbf82; }
   .term-title { margin-left: 8px; font-family: var(--mono); font-size: 11.5px; color: var(--code-text-2); }
-  .term-body { padding: 18px 18px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--code-text); overflow-x: auto; white-space: pre-wrap; }
+  .term-body { padding: 20px 20px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--code-text); overflow-x: auto; white-space: pre-wrap; }
   .term-body .c { color: var(--code-text-2); }
   .term-body .k { color: color-mix(in srgb, var(--icon-from) 88%, white 4%); }
   .term-body .v { color: var(--code-text); }
   .term-body .arrow { color: var(--code-text-2); }
 
   /* ---------- how it works ---------- */
-  .flow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-top: 34px; }
-  .flow-steps { display: flex; flex-direction: column; gap: 22px; }
-  .flow-step { display: flex; gap: 16px; }
+  .flow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin-top: 56px; }
+  .flow-steps { display: flex; flex-direction: column; gap: 26px; }
+  .flow-step { display: flex; gap: 18px; }
   .flow-step .n {
     font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--accent-ink);
-    background: var(--accent); width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); width: 28px; height: 28px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; flex: none;
   }
-  .flow-step h3 { font-size: 15.5px; margin: 2px 0 6px; }
-  .flow-step p { font-size: 13.5px; color: var(--text-2); margin: 0; max-width: 42ch; }
+  .flow-step h3 { font-size: 16px; margin: 2px 0 6px; }
+  .flow-step p { font-size: 14px; color: var(--text-2); margin: 0; max-width: 42ch; }
 
-  h2 { font-family: var(--mono); font-size: clamp(23px, 2.6vw, 31px); letter-spacing: -0.01em; margin: 14px 0 6px; text-wrap: balance; }
-  .section-lede { color: var(--text-2); margin: 0 0 8px; max-width: 60ch; }
+  /* ---------- onboarding mockup ---------- */
+  .onb-mock {
+    width: 100%; max-width: 340px; margin: 0 auto; border-radius: 16px; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+  }
+  .onb-mock .titlebar { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .onb-mock .titlebar span { width: 10px; height: 10px; border-radius: 50%; }
+  .onb-mock .titlebar span:nth-child(1) { background: #e2705d; }
+  .onb-mock .titlebar span:nth-child(2) { background: #dbab3f; }
+  .onb-mock .titlebar span:nth-child(3) { background: #3fbf82; }
+  .onb-mock .content { padding: 22px; }
+  .onb-mock h4 { font-size: 15px; margin: 0 0 8px; }
+  .onb-mock p { font-size: 12.5px; color: var(--text-2); margin: 0; }
+  .onb-mock .foot { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px 20px; }
+  .onb-mock .dots { display: flex; gap: 5px; }
+  .onb-mock .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+  .onb-mock .dots span.on { background: var(--accent); }
+  .onb-mock .next { background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 8px; }
 
-  /* ---------- features: editorial list, not identical tiles ---------- */
-  .feature-list { margin-top: 34px; display: flex; flex-direction: column; }
+  /* ---------- feature list (compact editorial rows) ---------- */
+  .feature-list { margin-top: 56px; display: flex; flex-direction: column; }
   .feature-row {
     display: grid; grid-template-columns: 30px 1fr; gap: 18px;
-    padding: 22px 0; border-top: 1px solid var(--border);
+    padding: 24px 0; border-top: 1px solid var(--border);
   }
   .feature-row:last-child { border-bottom: 1px solid var(--border); }
   .feature-row .dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 7px; }
-  .feature-row .body { display: grid; grid-template-columns: 1fr; gap: 4px; }
   .feature-row h3 { font-size: 16px; margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .feature-row h3 .tag { font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
   .feature-row p { font-size: 14px; color: var(--text-2); margin: 4px 0 0; max-width: 62ch; }
 
   /* ---------- install ---------- */
-  .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; margin-top: 30px; }
+  .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; margin-top: 56px; }
   .install-note { font-size: 13.5px; color: var(--text-2); margin-top: 12px; }
   .install-note code { font-family: var(--mono); background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
 
-  footer { border-top: 1px solid var(--border); padding: 56px 0 40px; }
+  /* ---------- closing CTA ---------- */
+  .closer { text-align: center; }
+  .closer h2 { margin-bottom: 8px; }
+
+  footer { border-top: 1px solid var(--border); padding: 64px 0 40px; }
   .footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 40px; }
   .footer-blurb { font-size: 13.5px; color: var(--text-2); max-width: 34ch; margin: 14px 0 20px; }
   .footer-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; }
@@ -272,6 +436,7 @@
   }
   .footer-prompt .p { color: var(--accent); }
   .footer-prompt .cursor2 { display: inline-block; width: 0.55em; height: 1em; background: var(--text-2); vertical-align: -2px; animation: blink 1.1s steps(1) infinite; margin-left: 2px; }
+  @keyframes blink { 50% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .footer-prompt .cursor2 { animation: none; } }
 
   @media (max-width: 720px) {
@@ -279,10 +444,8 @@
     .footer-bottom { flex-direction: column-reverse; align-items: flex-start; }
     .disclaimer { white-space: normal; }
   }
-
   @media (max-width: 860px) {
-    .hero-grid, .flow-grid, .install-grid { grid-template-columns: 1fr; }
-    .demo-stage { order: -1; }
+    .flow-grid, .install-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -298,45 +461,45 @@
     </a>
     <nav class="nav-links">
       <a class="ghost" href="#states">States</a>
-      <a class="ghost" href="#how">How it works</a>
-      <a class="ghost" href="#features">Features</a>
+      <a class="ghost" href="#insights">Insights</a>
+      <a class="ghost" href="#workflow">Workflow</a>
       <a class="ghost" href="#install">Install</a>
+      <span class="sep"></span>
       <a class="ghost" href="https://github.com/MOHAMEDSAMEER78/claudepet">GitHub</a>
-      <a class="btn btn-primary" href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.dmg">Download</a>
+      <a class="btn btn-primary small" href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.zip">Download</a>
     </nav>
   </div>
 </header>
 
 <main id="top">
-  <section class="hero wrap">
-    <div class="hero-grid">
-      <div>
-        <div class="eyebrow"><span class="dot"></span>Free &amp; open source · macOS menu bar</div>
-        <h1>A desktop pet<br>for Claude Code<span class="cursor" aria-hidden="true">&nbsp;</span></h1>
-        <p class="lede">A small floating companion that reacts to your Claude Code sessions in real time — idle, working, needs your permission, ready for review, or failed. Click it to jump straight back to the right session.</p>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.dmg">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
-            Download for macOS
-          </a>
-          <a class="btn btn-secondary" href="https://github.com/MOHAMEDSAMEER78/claudepet">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 015.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.58.24 2.75.12 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.27 5.67.42.36.78 1.07.78 2.16v3.2c0 .31.21.66.79.55A10.52 10.52 0 0023.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>
-            View on GitHub
-          </a>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero wrap" id="hero-section">
+    <div class="eyebrow center reveal"><span class="dot"></span>Free &amp; open source · macOS menu bar</div>
+    <h1 class="hero-h1 reveal d1">Claude Code,<br>with a <span class="grad">pulse.</span></h1>
+    <p class="lede reveal d2">A small companion that lives in your menu bar, reacts to every session in real time, keeps score of your streaks, and taps you on the shoulder only when it actually matters.</p>
+    <div class="cta-row reveal d3">
+      <a class="btn btn-primary" href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.zip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+        Download for macOS
+      </a>
+      <a class="btn btn-secondary" href="https://github.com/MOHAMEDSAMEER78/claudepet">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11 11 0 015.79 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.58.24 2.75.12 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.27 5.67.42.36.78 1.07.78 2.16v3.2c0 .31.21.66.79.55A10.52 10.52 0 0023.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+    <p class="version-tag reveal d3">Now at <a href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/tag/v1.1.5">v1.1.5</a> — usage quotas, mood &amp; streaks, budget alerts, and a lot more since v1.1.0.</p>
+
+    <div class="hero-stage reveal d3" id="demo-card">
+      <div class="pet-card">
+        <div class="shot-frame">
+          <img class="shot-img is-active" src="assets/screenshots/state-running.jpg" alt="ClaudePet showing a live tool call and task progress ring">
+          <img class="shot-img" src="assets/screenshots/state-review.jpg" alt="ClaudePet showing a done, ready-for-review state">
+          <img class="shot-img" src="assets/screenshots/state-waiting.jpg" alt="ClaudePet waiting for a permission decision">
+          <img class="shot-img" src="assets/screenshots/state-failed.jpg" alt="ClaudePet reacting to a failed build">
         </div>
-        <p class="version-tag">Now at <a href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/tag/v1.1.0">v1.1.0</a> — Preferences, a command palette, session stats, and notification-based permission alerts.</p>
-      </div>
-      <div class="demo-stage">
-        <div class="demo-card" id="demo-card">
-          <div class="shot-frame">
-            <img class="shot-img is-active" src="assets/screenshots/state-running.jpg" alt="ClaudePet showing a live tool call and task progress ring">
-            <img class="shot-img" src="assets/screenshots/state-review.jpg" alt="ClaudePet showing a done, ready-for-review state">
-            <img class="shot-img" src="assets/screenshots/state-waiting.jpg" alt="ClaudePet waiting for a permission decision">
-            <img class="shot-img" src="assets/screenshots/state-failed.jpg" alt="ClaudePet reacting to a failed build">
-          </div>
-          <div class="demo-pill" id="demo-pill">WORKING</div>
-          <p class="demo-caption">Real, unedited — captured live from an actual session.</p>
-        </div>
+        <div class="demo-pill" id="demo-pill">WORKING</div>
+        <p class="demo-caption">Real, unedited — captured live from an actual session.</p>
       </div>
     </div>
 
@@ -349,10 +512,13 @@
     </div>
   </section>
 
+  <!-- ============ STATES ============ -->
   <section id="states" class="wrap">
-    <div class="eyebrow reveal"><span class="dot"></span>State machine</div>
-    <h2 class="reveal">Five moods. One glance.</h2>
-    <p class="section-lede reveal">Real, unedited captures — the pet reacting live to an actual Claude Code session, not mockups.</p>
+    <div class="kicker-h2">
+      <div class="eyebrow reveal"><span class="dot"></span>State machine</div>
+      <h2 class="reveal d1">Five moods. One glance.</h2>
+      <p class="section-lede reveal d2">Real, unedited captures — the pet reacting live to an actual Claude Code session, not mockups.</p>
+    </div>
 
     <div class="state-grid reveal">
       <div class="state-card">
@@ -379,10 +545,176 @@
     <p class="state-note reveal">Priority when several sessions are active: needs&#8209;you &gt; failed &gt; ready&#8209;for&#8209;review &gt; working &gt; idle — the same order the Activity Tray sorts by.</p>
   </section>
 
+  <!-- ============ INK: NOTIFICATIONS ============ -->
+  <section class="ink">
+    <div class="wrap">
+      <div class="eyebrow center on-ink reveal"><span class="dot"></span>Notifications</div>
+      <p class="big-statement reveal d1">It knows when to <em>bother</em> you.<br><span class="dim">And, just as importantly, when not to.</span></p>
+    </div>
+    <div class="wrap" style="margin-top:64px;">
+      <div class="notif-stack reveal d2">
+        <div class="notif">
+          <div class="icon">🙋</div>
+          <div class="body">
+            <div class="title">Claude Code needs your permission <time>now</time></div>
+            <div class="subtitle">claudepet</div>
+            <div class="msg">Wants to use Bash</div>
+          </div>
+        </div>
+        <div class="notif">
+          <div class="icon">✅</div>
+          <div class="body">
+            <div class="title">Fix flaky notification tests finished <time>1m ago</time></div>
+            <div class="subtitle">claudepet</div>
+            <div class="msg">4/4 tasks · 12m</div>
+          </div>
+        </div>
+        <div class="notif">
+          <div class="icon">💰</div>
+          <div class="body">
+            <div class="title">Today's spend crossed your budget <time>3m ago</time></div>
+            <div class="msg">Est. $10.42 so far, budget is $10.00.</div>
+          </div>
+        </div>
+      </div>
+      <p class="section-lede ink center reveal d3" style="margin-top:44px; max-width: 640px; margin-left:auto; margin-right:auto;">
+        Permission requests and finished sessions notify you unconditionally — even while you're looking right at the pet — because those are the two moments you can't afford to miss. Everything else stays out of your way until you actually need it.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ PERSONALITY / MOOD ============ -->
+  <section class="wrap">
+    <div class="story">
+      <div>
+        <div class="eyebrow left story-eyebrow reveal"><span class="dot"></span>Personality</div>
+        <h2 class="reveal d1">It remembers every session you've ever run.</h2>
+        <p class="section-lede reveal d2" style="text-align:left;">Streaks, levels, and a per-project skin — all derived locally from your own history log, never uploaded anywhere.</p>
+        <ul class="check-list reveal d3">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span><b>Daily streaks</b> that track consecutive days you've actually used Claude Code — a gap day breaks it, same as any habit tracker.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span><b>XP &amp; levels</b> earned from finished sessions and completed tasks, shown as a subtle warm tint on the pet itself at higher levels.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span><b>Per-project skins</b> — assign a different pet to each repo from the gallery, so you know which project is talking to you at a glance.</span></li>
+        </ul>
+      </div>
+      <div class="story-visual reveal d2">
+        <div class="mood-panel">
+          <div class="mood-row">
+            <span class="mood-title">Session Stats</span>
+            <div class="badge-pair">
+              <span class="badge fire">🔥 5d</span>
+              <span class="badge star">⭐ Lv 3</span>
+            </div>
+          </div>
+          <div class="skin-row">
+            <span class="skin-chip"><span class="avatar">🦊</span>claudepet</span>
+            <span class="skin-chip"><span class="avatar">🐢</span>atlas-core</span>
+            <span class="skin-chip"><span class="avatar">🦉</span>drones-ui</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INSIGHTS ============ -->
+  <section id="insights" class="wrap">
+    <div class="kicker-h2">
+      <div class="eyebrow reveal"><span class="dot"></span>Insights</div>
+      <h2 class="reveal d1">Know exactly where you stand.</h2>
+      <p class="section-lede reveal d2">Spend, quota, and history — read straight from Claude Code's own data, entirely on your Mac.</p>
+    </div>
+
+    <div class="story reverse" style="margin-top:24px;">
+      <div>
+        <h3 style="font-size:20px; margin:0 0 10px;">Session Stats, properly graphed</h3>
+        <p style="color:var(--text-2); font-size:15px; margin:0 0 20px;">A 14-day spend trend, a per-project cost breakdown, and daily/weekly session &amp; task counters — computed the moment a session ends, not estimated after the fact.</p>
+        <ul class="check-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span>Daily budget alerts, once per day, the moment your estimated spend crosses a threshold you set.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span>A weekly digest notification: sessions, tasks, hours worked, and est. cost, delivered once a week.</span></li>
+        </ul>
+      </div>
+      <div class="story-visual reveal d2">
+        <div class="chart-mock">
+          <div class="chart-head">
+            <div><div class="amt">$4.82</div><div class="lbl">Spend, last 7 days</div></div>
+          </div>
+          <div class="bars" aria-hidden="true">
+            <div class="bar" style="height:28%"></div>
+            <div class="bar" style="height:52%"></div>
+            <div class="bar" style="height:34%"></div>
+            <div class="bar peak" style="height:88%"></div>
+            <div class="bar" style="height:46%"></div>
+            <div class="bar" style="height:64%"></div>
+            <div class="bar" style="height:22%"></div>
+          </div>
+          <div class="quota-tiles">
+            <div class="quota-tile"><div class="pct" style="color:#1f8a58">65% left</div><div class="lbl">5h quota</div></div>
+            <div class="quota-tile"><div class="pct" style="color:#a3791b">38% left</div><div class="lbl">7d quota</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="story" style="margin-top:120px;">
+      <div>
+        <h3 style="font-size:20px; margin:0 0 10px;">Your Claude usage, one click away</h3>
+        <p style="color:var(--text-2); font-size:15px; margin:0 0 20px;">Opt in once, and your 5-hour and 7-day rate-limit quota shows up right in the menu bar dropdown — color-coded green, orange, or red — without ever touching your own terminal statusline.</p>
+        <ul class="check-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span>Chains through to whatever statusLine script you already have — your terminal's own output is completely unaffected.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span>Entirely opt-in from Hook Setup &amp; Diagnostics — off by default, on with one click.</span></li>
+        </ul>
+      </div>
+      <div class="story-visual reveal d2">
+        <div class="menu-mock">
+          <div class="row usage"><span>⚡ <b class="g">65%</b> 5h left</span><span>📅 <b class="y">38%</b> 7d left</span></div>
+          <div class="divider"></div>
+          <div class="row">Tuck Away Pet (⌘⇧P)</div>
+          <div class="row">Jump to Session… (⌘⇧K)</div>
+          <div class="divider"></div>
+          <div class="row">Pet Gallery…</div>
+          <div class="row">Session Stats…</div>
+          <div class="row dim">Preferences…</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INK: WORKFLOW ============ -->
+  <section class="ink" id="workflow">
+    <div class="wrap">
+      <div class="eyebrow center on-ink reveal"><span class="dot"></span>Workflow</div>
+      <h2 class="center reveal d1" style="color:var(--ink-text);">One click closer to the terminal.</h2>
+      <p class="section-lede ink center reveal d2" style="max-width:600px; margin:0 auto;">Right-click the bubble for the exact session you're looking at — no more hunting through windows.</p>
+    </div>
+
+    <div class="wrap" style="margin-top:56px;">
+      <div class="story">
+        <div class="reveal d2" style="max-width:280px; margin:0 auto;">
+          <div class="ctx-mock">
+            <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Bring to Front</div>
+            <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>Copy Summary</div>
+            <div class="row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Reveal Transcript in Finder</div>
+            <div class="divider"></div>
+            <div class="row danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>End Session</div>
+          </div>
+        </div>
+        <div>
+          <ul class="check-list" style="margin-top:0;">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span style="color:var(--ink-text-2);"><b style="color:var(--ink-text);">Quick actions</b> on the bubble and every tray row — bring the right terminal tab forward, copy the summary, open the raw transcript, or end the session.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span style="color:var(--ink-text-2);"><b style="color:var(--ink-text);">Command palette</b> (⌘⇧K) — a Spotlight-style fuzzy jump to any active session by project name.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span style="color:var(--ink-text-2);"><b style="color:var(--ink-text);">Multi-monitor docking</b> — pin the pet to a specific display and corner; it re-clamps automatically when you plug or unplug a screen.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
   <section id="how" class="wrap">
-    <div class="eyebrow reveal"><span class="dot"></span>How it works</div>
-    <h2 class="reveal">No first-party API — so it watches a folder instead</h2>
-    <p class="section-lede reveal">Claude Code is a CLI. There's no window to hook into, so ClaudePet bridges it with hooks (writing state) and a menu-bar app (watching state).</p>
+    <div class="kicker-h2">
+      <div class="eyebrow reveal"><span class="dot"></span>How it works</div>
+      <h2 class="reveal d1">No first-party API — so it watches a folder instead</h2>
+      <p class="section-lede reveal d2">Claude Code is a CLI. There's no window to hook into, so ClaudePet bridges it with hooks (writing state) and a menu-bar app (watching state).</p>
+    </div>
 
     <div class="flow-grid">
       <div class="flow-steps reveal">
@@ -424,89 +756,62 @@
     </div>
   </section>
 
-  <section id="features" class="wrap">
-    <div class="eyebrow reveal"><span class="dot"></span>Features</div>
-    <h2 class="reveal">Everything you'd want from a status pet</h2>
-    <p class="section-lede reveal">Built to mirror the real Codex desktop pets, adapted for a CLI-first tool with no first-party app window of its own.</p>
+  <!-- ============ THOUGHTFUL BY DESIGN ============ -->
+  <section class="wrap">
+    <div class="kicker-h2">
+      <div class="eyebrow reveal"><span class="dot"></span>Thoughtful by design</div>
+      <h2 class="reveal d1">Set up once. Forget it exists.</h2>
+      <p class="section-lede reveal d2">The small things that make a menu-bar app worth leaving running for months.</p>
+    </div>
 
-    <div class="feature-list reveal">
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-idle)"></span>
-        <div class="body">
-          <h3>Reacts to your session</h3>
-          <p>Idle, working, needs permission, ready for review, or failed — each with its own pose, a color-matched menu-bar icon, and a plain-English status line.</p>
-        </div>
+    <div class="spot-grid">
+      <div class="spot-card reveal">
+        <div class="glyph" style="background:color-mix(in srgb, var(--s-review) 14%, transparent); color:var(--s-review);">👋</div>
+        <h3>Guided first run</h3>
+        <p>A short welcome tour explains every pet state and hotkey before handing off to a one-click hook installer — no README required.</p>
       </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-waiting)"></span>
-        <div class="body">
-          <h3>Permission notifications</h3>
-          <p>A native macOS notification the instant Claude Code needs a decision — rare under auto mode, but impossible to miss when it happens. ClaudePet never decides for you.</p>
-        </div>
+      <div class="spot-card reveal d1">
+        <div class="glyph" style="background:color-mix(in srgb, var(--s-waiting) 14%, transparent); color:var(--s-waiting);">♿︎</div>
+        <h3>Accessible</h3>
+        <p>VoiceOver labels on the pet bubble, tray rows, and stats tiles — the state machine is announced, not just shown.</p>
       </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-running)"></span>
-        <div class="body">
-          <h3>Activity tray</h3>
-          <p>Every active session, ranked by urgency. Click a row to jump straight to that terminal or IDE window.</p>
-        </div>
+      <div class="spot-card reveal d2">
+        <div class="glyph" style="background:color-mix(in srgb, var(--s-running) 14%, transparent); color:var(--s-running);">🌍</div>
+        <h3>Built for more languages</h3>
+        <p>Localization groundwork is already in place, starting with the menu bar — the rest of the UI migrates the same way over time.</p>
       </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-review)"></span>
-        <div class="body">
-          <h3>Session command palette <span class="tag">⌘⇧K</span></h3>
-          <p>A Spotlight-style fuzzy jump to any active session by project name — built for when you've got more than two or three going.</p>
-        </div>
+      <div class="spot-card reveal">
+        <div class="glyph" style="background:color-mix(in srgb, var(--s-idle) 14%, transparent); color:var(--s-idle);">🔁</div>
+        <h3>Launches with your Mac</h3>
+        <p>Turn on Launch at Login from Preferences and it's just always there — no need to remember to open it.</p>
       </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-failed)"></span>
-        <div class="body">
-          <h3>Session stats &amp; spend</h3>
-          <p>Sessions today/this week, tasks completed, and an estimated token/cost readout — all local, all from your own machine, never uploaded anywhere.</p>
-        </div>
+      <div class="spot-card reveal d1">
+        <div class="glyph" style="background:color-mix(in srgb, var(--s-failed) 14%, transparent); color:var(--s-failed);">🔧</div>
+        <h3>Self-diagnosing</h3>
+        <p>Hook Setup &amp; Diagnostics doubles as the fix for "the pet just isn't reacting" — a health check, not a support ticket.</p>
       </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-idle)"></span>
-        <div class="body">
-          <h3>Multi-session pets</h3>
-          <p>Prefer one pet per session instead of a single aggregate? Toggle a mode that lays them out in a row.</p>
-        </div>
-      </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-running)"></span>
-        <div class="body">
-          <h3>Pet gallery</h3>
-          <p>Browse and preview every installed pet before applying it — drop in your own spritesheet, or reuse real Codex-format pets, same manifest and conventions.</p>
-        </div>
-      </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-review)"></span>
-        <div class="body">
-          <h3>One-click hook setup</h3>
-          <p>An in-app installer wires the hooks into your Claude Code settings for you — plus a health check for "the pet just isn't reacting."</p>
-        </div>
-      </div>
-      <div class="feature-row">
-        <span class="dot" style="background:var(--s-waiting)"></span>
-        <div class="body">
-          <h3>Launches with your Mac</h3>
-          <p>Turn on Launch at Login from Preferences and it's just always there — no need to remember to open it.</p>
-        </div>
+      <div class="spot-card reveal d2">
+        <div class="glyph" style="background:color-mix(in srgb, var(--s-review) 14%, transparent); color:var(--s-review);">🔒</div>
+        <h3>Local, always</h3>
+        <p>Every number ClaudePet shows you — cost, streaks, quota — is computed on your Mac from files already on your Mac. Nothing is ever uploaded.</p>
       </div>
     </div>
   </section>
 
+  <!-- ============ INSTALL ============ -->
   <section id="install" class="wrap">
-    <div class="eyebrow reveal"><span class="dot"></span>Install</div>
-    <h2 class="reveal">Two minutes, no App Store</h2>
-    <p class="section-lede reveal">A plain .app bundle plus one hook snippet merged into your Claude Code settings.</p>
+    <div class="kicker-h2">
+      <div class="eyebrow reveal"><span class="dot"></span>Install</div>
+      <h2 class="reveal d1">Two minutes, no App Store</h2>
+      <p class="section-lede reveal d2">A plain .app bundle plus one hook snippet merged into your Claude Code settings.</p>
+    </div>
 
     <div class="install-grid">
       <div class="reveal">
         <div class="term">
           <div class="term-bar"><span></span><span></span><span></span><div class="term-title">zsh — install</div></div>
-          <div class="term-body"><span class="c"># 1. Download and open the app</span>
-open ClaudePet.dmg
+          <div class="term-body"><span class="c"># 1. Download and unzip</span>
+open ~/Downloads/ClaudePet.zip
 <span class="c"># drag ClaudePet.app to Applications, launch it</span>
 
 <span class="c"># 2. Wire up the hooks</span>
@@ -515,7 +820,7 @@ open ClaudePet.dmg
         </div>
         <p class="install-note">Ad-hoc signed, not notarized — right-click → Open on first launch, or run <code>xattr -dr com.apple.quarantine</code> on the app.</p>
       </div>
-      <div class="reveal">
+      <div class="reveal d1">
         <div class="term">
           <div class="term-bar"><span></span><span></span><span></span><div class="term-title">zsh — build from source</div></div>
           <div class="term-body"><span class="c"># Requires macOS 13+, Swift 5.9+</span>
@@ -528,6 +833,21 @@ open ClaudePet.app</div>
       </div>
     </div>
   </section>
+
+  <!-- ============ CLOSING CTA ============ -->
+  <section class="closer wrap" style="padding-top:0;">
+    <div class="eyebrow reveal"><span class="dot"></span>Ready when you are</div>
+    <h2 class="reveal d1">Give your terminal a companion.</h2>
+    <p class="section-lede reveal d2" style="max-width:480px; margin:0 auto 32px;">Free, open source, and it never phones home.</p>
+    <div class="cta-row reveal d3">
+      <a class="btn btn-primary" href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.zip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+        Download for macOS
+      </a>
+      <a class="btn btn-secondary" href="https://github.com/MOHAMEDSAMEER78/claudepet">View on GitHub</a>
+    </div>
+  </section>
+
 </main>
 
 <footer class="wrap">
@@ -539,7 +859,7 @@ open ClaudePet.app</div>
         </span>
         ClaudePet
       </div>
-      <p class="footer-blurb">A floating menu-bar companion that reacts to what your Claude Code sessions are actually doing, in real time.</p>
+      <p class="footer-blurb">A menu-bar companion that reacts to what your Claude Code sessions are actually doing, in real time.</p>
       <div class="footer-legend">
         <span class="item"><span class="dot" style="background:var(--s-idle)"></span>idle</span>
         <span class="item"><span class="dot" style="background:var(--s-running)"></span>working</span>
@@ -551,10 +871,10 @@ open ClaudePet.app</div>
     <div class="footer-col">
       <h4>Product</h4>
       <ul>
-        <li><a href="#how">How it works</a></li>
-        <li><a href="#features">Features</a></li>
+        <li><a href="#insights">Insights</a></li>
+        <li><a href="#workflow">Workflow</a></li>
         <li><a href="#install">Install</a></li>
-        <li><a href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.dmg">Download for macOS</a></li>
+        <li><a href="https://github.com/MOHAMEDSAMEER78/claudepet/releases/latest/download/ClaudePet.zip">Download for macOS</a></li>
       </ul>
     </div>
     <div class="footer-col">
@@ -579,22 +899,22 @@ open ClaudePet.app</div>
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var states = [
-    { css: '--s-running', pill: 'WORKING' },
-    { css: '--s-review', pill: 'READY FOR REVIEW' },
-    { css: '--s-waiting', pill: 'NEEDS PERMISSION' },
-    { css: '--s-failed', pill: 'FAILED' }
+    { css: '--s-running', ink: '--s-running-ink', pill: 'WORKING' },
+    { css: '--s-review', ink: '--s-review-ink', pill: 'READY FOR REVIEW' },
+    { css: '--s-waiting', ink: '--s-waiting-ink', pill: 'NEEDS PERMISSION' },
+    { css: '--s-failed', ink: '--s-failed-ink', pill: 'FAILED' }
   ];
 
-  var card = document.getElementById('demo-card');
+  var stage = document.getElementById('demo-card');
   var pill = document.getElementById('demo-pill');
-  var shots = card ? card.querySelectorAll('.shot-img') : [];
+  var shots = stage ? stage.querySelectorAll('.shot-img') : [];
 
-  if (card && shots.length && !reduceMotion) {
+  if (stage && shots.length && !reduceMotion) {
     var i = 0;
     setInterval(function () {
       i = (i + 1) % states.length;
       var s = states[i];
-      card.style.setProperty('--demo-glow', 'var(' + s.css + ')');
+      stage.style.setProperty('--demo-glow', 'var(' + s.ink + ')');
       pill.textContent = s.pill;
       shots.forEach(function (img, idx) { img.classList.toggle('is-active', idx === i); });
     }, 2800);
