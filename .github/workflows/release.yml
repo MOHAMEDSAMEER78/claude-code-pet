@@ -51,14 +51,17 @@ jobs:
 
       - name: Zip app bundle
         run: |
-          mkdir -p release-archives
+          mkdir -p release-archives stable-archive
           ditto -c -k --sequesterRsrc --keepParent ClaudePet.app "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip"
           # A second, version-less copy so the website's download button can
           # link to a stable ".../releases/latest/download/ClaudePet.zip"
           # URL that never needs updating - the versioned name above changes
           # every release, so a link naming it directly would break the
-          # next time this workflow runs.
-          cp "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" "release-archives/ClaudePet.zip"
+          # next time this workflow runs. Kept in its own directory, NOT
+          # release-archives/ - generate_appcast scans that whole directory
+          # and refuses to run if it finds two zips with identical content
+          # ("duplicate update archives"), which this copy would trigger.
+          cp "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" "stable-archive/ClaudePet.zip"
 
       - name: Compute checksum
         id: checksum
@@ -77,7 +80,7 @@ jobs:
           files: |
             release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip
             release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip.sha256
-            release-archives/ClaudePet.zip
+            stable-archive/ClaudePet.zip
           generate_release_notes: true
 
       # Sparkle appcast - only runs once SPARKLE_PRIVATE_KEY is set (repo
