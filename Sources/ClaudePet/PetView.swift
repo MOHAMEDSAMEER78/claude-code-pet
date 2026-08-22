@@ -114,45 +114,48 @@ private struct PetContentSizeKey: PreferenceKey {
 
 /// The pet visuals (bubble + sprite/emoji), decoupled from where the state
 /// comes from - reused by both the single aggregate pet and per-session pets.
+/// Bundles the bubble's right-click actions so PetContentView doesn't need
+/// to know how to focus a terminal, read a transcript path, or end a
+/// session - each caller (aggregate PetView / per-session SinglePetView)
+/// supplies its own closures over whatever session it actually has.
+struct PetQuickActions {
+    var bringToFront: () -> Void
+    var copySummary: () -> Void
+    var openTranscript: (() -> Void)?
+    var endSession: () -> Void
+}
+
 struct PetContentView: View {
     let state: PetState
     let identityName: String
     let bubbleText: String
     let footnote: String?
     @ObservedObject var library: PetLibrary
+    /// Project/session key used to resolve a per-project pet override; `nil`
+    /// always uses the global default (used by the single aggregate pet,
+    /// which can't show more than one skin at once anyway).
+    var assetKey: String? = nil
     var overrideRow: String? = nil
+    /// A subtle color multiply applied to the sprite/emoji, reflecting
+    /// PetProgress's derived mood level. `nil`/`.white` leaves it unchanged.
+    var moodTint: Color? = nil
     var tasksDone: Int? = nil
     var tasksTotal: Int? = nil
     var onTap: (() -> Void)?
     var onSizeChange: ((CGSize) -> Void)? = nil
+    /// Right-click actions on the bubble - reuses the same
+    /// bring-to-front/end-session plumbing the tray and command palette
+    /// already call, plus copy/open-transcript. `nil` when there's no
+    /// resolvable session to act on (e.g. aggregate view while idle).
+    var quickActions: PetQuickActions? = nil
 
     @State private var bobbing = false
 
+    private var resolvedAsset: PetAsset? { library.asset(forKey: assetKey) }
+
     var body: some View {
         VStack(spacing: 6) {
-            if let asset = library.current {
-                PetSpriteView(asset: asset, state: state, overrideRow: overrideRow)
-            } else if overrideRow == "jumping" {
-                Text(state.emoji)
-                    .font(.system(size: 56))
-                    .offset(y: -18)
-                    .shadow(radius: 3)
-            } else if overrideRow == "waving" {
-                Text(state.emoji)
-                    .font(.system(size: 56))
-                    .rotationEffect(.degrees(-12))
-                    .shadow(radius: 3)
-            } else {
-                Text(state.emoji)
-                    .font(.system(size: 56))
-                    .offset(y: bobbing ? -4 : 4)
-                    .animation(
-                        .easeInOut(duration: animationSpeed).repeatForever(autoreverses: true),
-                        value: bobbing
-                    )
-                    .onAppear { bobbing = true }
-                    .shadow(radius: 3)
-            }
+            sprite.colorMultiply(moodTint ?? .white)
 
             if !bubbleText.isEmpty {
                 ActivityCard(
@@ -180,6 +183,59 @@ struct PetContentView: View {
         .onPreferenceChange(PetContentSizeKey.self) { onSizeChange?($0) }
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(identityName), \(state.label)")
+        .accessibilityValue(bubbleText)
+        .contextMenu {
+            if let quickActions {
+                Button("Bring to Front", action: quickActions.bringToFront)
+                Button("Copy Summary", action: quickActions.copySummary)
+                if let openTranscript = quickActions.openTranscript {
+                    Button("Reveal Transcript in Finder", action: openTranscript)
+                }
+                Divider()
+                Button("End Session", role: .destructive, action: quickActions.endSession)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sprite: some View {
+        Group {
+            if let asset = resolvedAsset {
+                PetSpriteView(asset: asset, state: state, overrideRow: overrideRow)
+            } else if overrideRow == "jumping" {
+                Text(state.emoji)
+                    .font(.system(size: 56))
+                    .offset(y: -18)
+                    .shadow(radius: 3)
+            } else if overrideRow == "waving" {
+                Text(state.emoji)
+                    .font(.system(size: 56))
+                    .rotationEffect(.degrees(-12))
+                    .shadow(radius: 3)
+            } else if overrideRow == "stretching" {
+                Text(state.emoji)
+                    .font(.system(size: 56))
+                    .scaleEffect(x: 1.0, y: 1.15, anchor: .bottom)
+                    .shadow(radius: 3)
+            } else if overrideRow == "looking-around" {
+                Text(state.emoji)
+                    .font(.system(size: 56))
+                    .rotationEffect(.degrees(10))
+                    .shadow(radius: 3)
+            } else {
+                Text(state.emoji)
+                    .font(.system(size: 56))
+                    .offset(y: bobbing ? -4 : 4)
+                    .animation(
+                        .easeInOut(duration: animationSpeed).repeatForever(autoreverses: true),
+                        value: bobbing
+                    )
+                    .onAppear { bobbing = true }
+                    .shadow(radius: 3)
+            }
+        }
     }
 
     private var animationSpeed: Double {
@@ -257,8 +313,36 @@ struct PetView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var library: PetLibrary
     @ObservedObject var animator: PetAnimator
+    @ObservedObject var progressStore: PetProgressStore
     var onOpenTray: (() -> Void)? = nil
     var onSizeChange: ((CGSize) -> Void)? = nil
+
+    /// A pale-to-warm gold tint at higher mood levels; unleveled pets are
+    /// untinted so most users never notice anything changed.
+    private var moodTint: Color? {
+        switch progressStore.progress.level {
+        case 0: return nil
+        case 1, 2: return Color(red: 1.0, green: 0.97, blue: 0.85)
+        default: return Color(red: 1.0, green: 0.92, blue: 0.62)
+        }
+    }
+
+    private var quickActions: PetQuickActions? {
+        guard let session = store.winningSession else { return nil }
+        return PetQuickActions(
+            bringToFront: {
+                TerminalFocuser.focus(
+                    terminalApp: session.terminalApp, terminalPid: session.terminalPid,
+                    tty: session.tty, cwd: session.cwd
+                )
+            },
+            copySummary: { Clipboard.copy(session.bubbleText) },
+            openTranscript: TranscriptUsage.transcriptURL(forSession: session.sessionId).map { url in
+                { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+            },
+            endSession: { store.killSession(session) }
+        )
+    }
 
     var body: some View {
         PetContentView(
@@ -268,13 +352,15 @@ struct PetView: View {
             footnote: store.sessionCount > 1 ? "\(store.sessionCount) sessions - click to switch" : nil,
             library: library,
             overrideRow: animator.overrideRow,
+            moodTint: moodTint,
             tasksDone: store.tasksDone,
             tasksTotal: store.tasksTotal,
             onTap: {
                 animator.triggerJump()
                 onOpenTray?()
             },
-            onSizeChange: onSizeChange
+            onSizeChange: onSizeChange,
+            quickActions: quickActions
         )
     }
 }
@@ -284,6 +370,19 @@ struct SinglePetView: View {
     @ObservedObject var viewModel: SessionPetViewModel
     @ObservedObject var library: PetLibrary
     var onSizeChange: ((CGSize) -> Void)? = nil
+    var onEndSession: (() -> Void)? = nil
+
+    private var quickActions: PetQuickActions? {
+        guard let onEndSession else { return nil }
+        return PetQuickActions(
+            bringToFront: { viewModel.focusTerminal() },
+            copySummary: { Clipboard.copy(viewModel.bubbleText) },
+            openTranscript: TranscriptUsage.transcriptURL(forSession: viewModel.sessionId).map { url in
+                { NSWorkspace.shared.open(url) }
+            },
+            endSession: onEndSession
+        )
+    }
 
     var body: some View {
         PetContentView(
@@ -292,6 +391,7 @@ struct SinglePetView: View {
             bubbleText: viewModel.bubbleText,
             footnote: nil,
             library: library,
+            assetKey: viewModel.assetKey,
             overrideRow: viewModel.overrideRow,
             tasksDone: viewModel.tasksDone,
             tasksTotal: viewModel.tasksTotal,
@@ -299,7 +399,8 @@ struct SinglePetView: View {
                 viewModel.triggerJump()
                 viewModel.focusTerminal()
             },
-            onSizeChange: onSizeChange
+            onSizeChange: onSizeChange,
+            quickActions: quickActions
         )
     }
 }

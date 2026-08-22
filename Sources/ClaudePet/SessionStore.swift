@@ -18,6 +18,7 @@ final class SessionStore: ObservableObject {
     @Published private(set) var tasksDone: Int?
     @Published private(set) var tasksTotal: Int?
     @Published private(set) var title: String?
+    @Published private(set) var winningSessionId: String?
     /// Set whenever `refresh()` skips a session file it couldn't decode -
     /// visible (via Preferences/Stats) rather than silently vanishing that
     /// session, so a hook/app version mismatch doesn't look like a bug with
@@ -162,6 +163,7 @@ final class SessionStore: ObservableObject {
             tasksDone = nil
             tasksTotal = nil
             title = nil
+            winningSessionId = nil
             return
         }
         aggregate = winner.state
@@ -169,6 +171,16 @@ final class SessionStore: ObservableObject {
         tasksDone = winner.tasksDone
         tasksTotal = winner.tasksTotal
         title = winner.title
+        winningSessionId = winner.sessionId
+    }
+
+    /// The session the aggregate pet's bubble is currently reflecting - used
+    /// by the bubble's quick-actions menu (bring to front / copy / open
+    /// transcript / end session), which needs the full session record, not
+    /// just the summarized aggregate fields above.
+    var winningSession: EffectiveSession? {
+        guard let winningSessionId else { return nil }
+        return sessions.first { $0.sessionId == winningSessionId }
     }
 
     private func emitTransitions(for effective: [EffectiveSession]) {
@@ -223,5 +235,12 @@ final class SessionStore: ObservableObject {
             at: directory.appendingPathComponent("\(session.sessionId).json")
         )
         refresh()
+    }
+
+    /// Convenience for callers (per-session pet panels) that only have a
+    /// session id on hand, not the full record.
+    func killSession(sessionId: String) {
+        guard let session = sessions.first(where: { $0.sessionId == sessionId }) else { return }
+        killSession(session)
     }
 }

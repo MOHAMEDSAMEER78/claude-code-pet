@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ClaudePetCore
 
 /// One row in the Activity Tray: a session's chat summary, status, and
@@ -32,6 +33,9 @@ struct ActivityTrayRow: View {
         guard let app = session.terminalApp else { return "Click to focus this session's terminal" }
         if app.hasPrefix("Cursor") || app == "Code" || app == "Code Helper" {
             return "Click to focus the \(app == "Code" || app == "Code Helper" ? "VS Code" : "Cursor") window - not the exact integrated terminal tab, which isn't exposed to apps like this"
+        }
+        if app == "Warp" || app == "Alacritty" || app == "Ghostty" {
+            return "Click to bring \(app) to the front - it doesn't expose per-tab focus via AppleScript, so this raises the app rather than selecting the exact tab"
         }
         return "Click to focus this session's terminal"
     }
@@ -81,6 +85,9 @@ struct ActivityTrayRow: View {
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onSelect)
                 .help(focusHelpText)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(displayTitle), \(session.state.label)")
+                .accessibilityHint(focusHelpText)
                 Spacer(minLength: 4)
                 if let total = session.tasksTotal, total > 0, let done = session.tasksDone {
                     TaskProgressRing(done: done, total: total)
@@ -91,6 +98,15 @@ struct ActivityTrayRow: View {
         }
         .padding(8)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .contextMenu {
+            Button("Bring to Front", action: onSelect)
+            Button("Copy Summary") { Clipboard.copy(session.bubbleText) }
+            if let url = TranscriptUsage.transcriptURL(forSession: session.sessionId) {
+                Button("Reveal Transcript in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+            }
+            Divider()
+            Button("End Session", role: .destructive, action: onKill)
+        }
         .task(id: session.sessionId) {
             // Off the main actor's synchronous path deliberately - reading a
             // transcript is a file read that can occasionally be a few MB,
@@ -124,6 +140,7 @@ struct ActivityTrayRow: View {
         }
         .buttonStyle(.plain)
         .help(confirmingKill ? "Click again to end this session" : "End this Claude Code session")
+        .accessibilityLabel(confirmingKill ? "Confirm end session" : "End session")
     }
 
     private func handleKillTap() {

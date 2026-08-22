@@ -7,8 +7,14 @@ import UniformTypeIdentifiers
 /// menu bar one at a time.
 struct PetGalleryView: View {
     @ObservedObject var library: PetLibrary
+    /// Known project keys (from currently active sessions) that can get
+    /// their own pet skin override, in addition to the global default.
+    var projectKeys: [String] = []
 
     @State private var shareError: String?
+    /// nil = editing the global default; otherwise the project key whose
+    /// override is being edited.
+    @State private var scope: String?
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: 12)]
 
@@ -28,6 +34,25 @@ struct PetGalleryView: View {
                 Button("Reload") { library.reload() }
             }
 
+            if !projectKeys.isEmpty {
+                HStack {
+                    Picker("Applies to", selection: $scope) {
+                        Text("Global default").tag(String?.none)
+                        ForEach(projectKeys, id: \.self) { key in
+                            Text(key.capitalized).tag(String?.some(key))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 240)
+                    if let scope, library.perProjectSelection[scope] != nil {
+                        Button("Use Global Default") {
+                            library.setSelection(forKey: scope, dirName: nil)
+                        }
+                        .font(.system(size: 10))
+                    }
+                }
+            }
+
             if let shareError {
                 Text(shareError)
                     .font(.system(size: 10))
@@ -44,16 +69,16 @@ struct PetGalleryView: View {
 
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    tile(name: "Emoji", thumbnail: nil, isSelected: library.selectedIndex == nil) {
-                        library.useEmoji()
+                    tile(name: "Emoji", thumbnail: nil, isSelected: isSelected(dirName: nil)) {
+                        select(dirName: nil)
                     }
                     ForEach(Array(library.availableDirs.enumerated()), id: \.offset) { index, dir in
                         tile(
                             name: dir.lastPathComponent.capitalized,
                             thumbnail: thumbnail(for: dir),
-                            isSelected: library.selectedIndex == index
+                            isSelected: isSelected(dirName: dir.lastPathComponent)
                         ) {
-                            library.select(index: index)
+                            select(dirName: dir.lastPathComponent, index: index)
                         }
                     }
                 }
@@ -62,6 +87,32 @@ struct PetGalleryView: View {
         }
         .padding(18)
         .frame(width: 360)
+    }
+
+    private func isSelected(dirName: String?) -> Bool {
+        guard let scope else {
+            guard let selectedIndex = library.selectedIndex, library.availableDirs.indices.contains(selectedIndex) else {
+                return dirName == nil
+            }
+            return library.availableDirs[selectedIndex].lastPathComponent == dirName
+        }
+        guard let dirName else { return library.isEmojiOverride(forKey: scope) }
+        return library.perProjectSelection[scope] == dirName
+    }
+
+    private func select(dirName: String?, index: Int? = nil) {
+        guard let scope else {
+            if let index { library.select(index: index) } else { library.useEmoji() }
+            return
+        }
+        // Within a project's scope, picking "Emoji" pins the emoji fallback
+        // for that project specifically (not the same as having no override
+        // at all, which would fall back to the global default instead).
+        if let dirName {
+            library.setSelection(forKey: scope, dirName: dirName)
+        } else {
+            library.useEmoji(forKey: scope)
+        }
     }
 
     private func thumbnail(for dir: URL) -> NSImage? {
@@ -122,5 +173,6 @@ struct PetGalleryView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isSelected ? "\(name), selected" : name)
     }
 }

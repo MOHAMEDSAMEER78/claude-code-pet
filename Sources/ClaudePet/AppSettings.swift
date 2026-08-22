@@ -19,8 +19,21 @@ final class AppSettings: ObservableObject {
         case notifyOnReview
         case notifyOnPermission
         case notifyOnRunning
+        case notifyOnSessionEnd
         case groupPetsByProject
         case groupTrayByProject
+        case budgetAlertsEnabled
+        case dailyBudgetUSD
+        case lastBudgetAlertDate
+        case weeklyDigestEnabled
+        case lastDigestSentAt
+        case preferredScreenID
+        case preferredCorner
+        case showUsageInMenuBar
+    }
+
+    enum ScreenCorner: String, CaseIterable {
+        case bottomLeft, bottomRight, topLeft, topRight
     }
 
     private let defaults: UserDefaults
@@ -64,6 +77,13 @@ final class AppSettings: ObservableObject {
     @Published var notifyOnRunning: Bool {
         didSet { defaults.set(notifyOnRunning, forKey: Key.notifyOnRunning.rawValue) }
     }
+    /// Fires unconditionally (like permission requests, not gated on the
+    /// pet being hidden) since a session actually ending - not just one
+    /// turn finishing - is the one event you'd want to know about even
+    /// while looking right at the pet.
+    @Published var notifyOnSessionEnd: Bool {
+        didSet { defaults.set(notifyOnSessionEnd, forKey: Key.notifyOnSessionEnd.rawValue) }
+    }
     /// In Multi-Session Pets mode, key each pet's display name off its
     /// project directory instead of its session id, so every session in the
     /// same repo consistently shows the same named pet across relaunches.
@@ -74,6 +94,41 @@ final class AppSettings: ObservableObject {
     /// instead of one flat priority-sorted list.
     @Published var groupTrayByProject: Bool {
         didSet { defaults.set(groupTrayByProject, forKey: Key.groupTrayByProject.rawValue) }
+    }
+    /// Off by default - a budget only makes sense once the user sets one.
+    @Published var budgetAlertsEnabled: Bool {
+        didSet { defaults.set(budgetAlertsEnabled, forKey: Key.budgetAlertsEnabled.rawValue) }
+    }
+    /// `nil`/0 means "not set yet" - the alert check treats either as "no budget".
+    @Published var dailyBudgetUSD: Double {
+        didSet { defaults.set(dailyBudgetUSD, forKey: Key.dailyBudgetUSD.rawValue) }
+    }
+    /// Date (not just day) of the last time the budget alert fired, so it
+    /// only fires once per calendar day even while checks keep running.
+    @Published var lastBudgetAlertDate: Date? {
+        didSet { defaults.set(lastBudgetAlertDate?.timeIntervalSince1970, forKey: Key.lastBudgetAlertDate.rawValue) }
+    }
+    @Published var weeklyDigestEnabled: Bool {
+        didSet { defaults.set(weeklyDigestEnabled, forKey: Key.weeklyDigestEnabled.rawValue) }
+    }
+    @Published var lastDigestSentAt: Date? {
+        didSet { defaults.set(lastDigestSentAt?.timeIntervalSince1970, forKey: Key.lastDigestSentAt.rawValue) }
+    }
+    /// `NSScreenNumber` (from a screen's deviceDescription) of the display
+    /// the pet should stay docked to; nil/disconnected falls back to
+    /// `NSScreen.main`.
+    @Published var preferredScreenID: String? {
+        didSet { defaults.set(preferredScreenID, forKey: Key.preferredScreenID.rawValue) }
+    }
+    @Published var preferredCorner: ScreenCorner {
+        didSet { defaults.set(preferredCorner.rawValue, forKey: Key.preferredCorner.rawValue) }
+    }
+    /// Shows a "Claude usage" row inside the menu bar dropdown when usage
+    /// tracking (statusLine wrapper) has been enabled and has data. On by
+    /// default since it's a no-op with no visible effect until that opt-in
+    /// feature is turned on anyway.
+    @Published var showUsageInMenuBar: Bool {
+        didSet { defaults.set(showUsageInMenuBar, forKey: Key.showUsageInMenuBar.rawValue) }
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -94,7 +149,22 @@ final class AppSettings: ObservableObject {
         self.notifyOnPermission = defaults.object(forKey: Key.notifyOnPermission.rawValue) == nil
             ? true : defaults.bool(forKey: Key.notifyOnPermission.rawValue)
         self.notifyOnRunning = defaults.bool(forKey: Key.notifyOnRunning.rawValue)
+        self.notifyOnSessionEnd = defaults.object(forKey: Key.notifyOnSessionEnd.rawValue) == nil
+            ? true : defaults.bool(forKey: Key.notifyOnSessionEnd.rawValue)
         self.groupPetsByProject = defaults.bool(forKey: Key.groupPetsByProject.rawValue)
         self.groupTrayByProject = defaults.bool(forKey: Key.groupTrayByProject.rawValue)
+        self.budgetAlertsEnabled = defaults.bool(forKey: Key.budgetAlertsEnabled.rawValue)
+        self.dailyBudgetUSD = defaults.object(forKey: Key.dailyBudgetUSD.rawValue) == nil
+            ? 0 : defaults.double(forKey: Key.dailyBudgetUSD.rawValue)
+        self.lastBudgetAlertDate = (defaults.object(forKey: Key.lastBudgetAlertDate.rawValue) as? TimeInterval)
+            .map { Date(timeIntervalSince1970: $0) }
+        self.weeklyDigestEnabled = defaults.bool(forKey: Key.weeklyDigestEnabled.rawValue)
+        self.lastDigestSentAt = (defaults.object(forKey: Key.lastDigestSentAt.rawValue) as? TimeInterval)
+            .map { Date(timeIntervalSince1970: $0) }
+        self.preferredScreenID = defaults.string(forKey: Key.preferredScreenID.rawValue)
+        self.preferredCorner = defaults.string(forKey: Key.preferredCorner.rawValue)
+            .flatMap(ScreenCorner.init(rawValue:)) ?? .bottomRight
+        self.showUsageInMenuBar = defaults.object(forKey: Key.showUsageInMenuBar.rawValue) == nil
+            ? true : defaults.bool(forKey: Key.showUsageInMenuBar.rawValue)
     }
 }

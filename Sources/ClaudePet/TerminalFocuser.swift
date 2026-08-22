@@ -11,6 +11,12 @@ import AppKit
 /// tmux client switched before raising the terminal window the normal way.
 /// VS Code/Cursor don't expose per-tab tty at all, so we do the next best
 /// thing there: reuse/open the window for the matching workspace folder.
+/// Warp, Alacritty, and Ghostty expose no scripting dictionary at all (no
+/// per-tab tty, no workspace-reuse command) - for those, and for any other
+/// unrecognized terminal, the realistic ceiling is the final PID-activate
+/// fallback below (raises the app, not necessarily the right tab/window).
+/// A tmux pane hosted inside one of them still gets its tmux-side focus
+/// switched correctly via focusTmux, just without a window being raised.
 enum TerminalFocuser {
     static func focus(terminalApp: String?, terminalPid: Int32?, tty: String?, cwd: String?) {
         var focused = false

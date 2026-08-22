@@ -27,6 +27,7 @@ final class PetAnimator: ObservableObject {
 
     private weak var panel: PetPanel?
     private weak var store: SessionStore?
+    private weak var library: PetLibrary?
     private var transientTimer: Timer?
     private var wanderScheduleTimer: Timer?
     private var wanderStepTimer: Timer?
@@ -35,9 +36,10 @@ final class PetAnimator: ObservableObject {
     private var suppressWanderUntil = Date.distantPast
     private var isWandering = false
 
-    func attach(panel: PetPanel, store: SessionStore) {
+    func attach(panel: PetPanel, store: SessionStore, library: PetLibrary? = nil) {
         self.panel = panel
         self.store = store
+        self.library = library
 
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
@@ -50,7 +52,7 @@ final class PetAnimator: ObservableObject {
         }
 
         wanderScheduleTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            self?.maybeStartWander()
+            self?.maybeStartIdleVariant()
         }
     }
 
@@ -67,17 +69,38 @@ final class PetAnimator: ObservableObject {
         }
     }
 
-    private func maybeStartWander() {
+    /// Every tick, either strolls to a new spot (existing wander) or - if
+    /// the current pet supports the extra rows - plays a brief stretch/
+    /// look-around in place, so idle isn't always the same walk-and-settle
+    /// loop. Options with no asset support (or, for the emoji fallback, no
+    /// matching visual branch) are simply left out of the pick.
+    private func maybeStartIdleVariant() {
         guard wanderEnabled else { return }
         guard !isWandering, transientTimer == nil || !(transientTimer?.isValid ?? false) else { return }
         guard Date() > suppressWanderUntil else { return }
         guard store?.aggregate == .idle else { return }
         guard Bool.random() && Bool.random() else { return } // ~75% skip each tick, keeps it lazy
-        beginWanderLeg()
+
+        // No custom asset -> emoji fallback, which has hand-drawn branches
+        // for both variants; a custom asset needs the matching sprite row.
+        let hasStretch = library?.current == nil || (library?.current?.hasRow("stretching") ?? false)
+        let hasLook = library?.current == nil || (library?.current?.hasRow("looking-around") ?? false)
+
+        var options: [() -> Void] = [{ [weak self] in self?.beginWanderLeg() }]
+        if hasStretch { options.append { [weak self] in self?.playIdleTransient("stretching", fallbackFrames: 4, fallbackFps: 6) } }
+        if hasLook { options.append { [weak self] in self?.playIdleTransient("looking-around", fallbackFrames: 3, fallbackFps: 5) } }
+        options.randomElement()?()
+    }
+
+    private func playIdleTransient(_ row: String, fallbackFrames: Int, fallbackFps: Double) {
+        let frameCount = library?.current?.frames(row: row)?.count ?? fallbackFrames
+        let fps = library?.current?.fps ?? fallbackFps
+        playTransient(row, frames: frameCount, fps: fps)
     }
 
     private func beginWanderLeg() {
-        guard let panel, let screen = NSScreen.main else { return }
+        guard let panel else { return }
+        let screen = PetPanel.targetScreen()
         let margin: CGFloat = 24
         let minX = screen.visibleFrame.minX + margin
         let maxX = screen.visibleFrame.maxX - panel.frame.width - margin

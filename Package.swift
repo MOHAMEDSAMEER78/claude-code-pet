@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ClaudePet",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     dependencies: [
         // Auto-update only - independent of Apple code signing/notarization.
@@ -23,6 +24,7 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "Sources/ClaudePet",
+            resources: [.process("Resources")],
             // Keep the app in Swift 5 mode: it predates Swift 6 strict
             // concurrency checking and AppKit/SwiftUI call sites throughout
             // (NSPanel, ObservableObject stores) aren't annotated for it.
@@ -32,7 +34,19 @@ let package = Package(
         .testTarget(
             name: "ClaudePetCoreTests",
             dependencies: ["ClaudePetCore"],
-            path: "Tests/ClaudePetCoreTests"
+            path: "Tests/ClaudePetCoreTests",
+            swiftSettings: [
+                .unsafeFlags(["-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/usr/lib",
+                ]),
+            ]
         ),
     ]
 )

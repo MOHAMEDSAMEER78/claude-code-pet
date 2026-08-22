@@ -32,6 +32,11 @@ struct PetManifest: Codable {
     static let defaultRowOrder = [
         "idle", "running-right", "running-left", "waving",
         "jumping", "failed", "waiting", "running", "review",
+        // Optional idle-variety rows, appended after the fixed Codex 9-row
+        // convention so existing 9-row spritesheets are unaffected (rows
+        // beyond their sheet height simply detect zero frames and are
+        // skipped - see PetAssetLoader.load).
+        "stretching", "looking-around",
     ]
 }
 
@@ -40,6 +45,10 @@ struct PetAsset {
     let fps: Double
     /// state row name -> ordered frame images
     let frames: [String: [NSImage]]
+
+    func hasRow(_ name: String) -> Bool {
+        !(frames[name]?.isEmpty ?? true)
+    }
 
     /// Maps our PetState to the Codex row name it should play.
     static func rowName(for state: PetState) -> String {

@@ -24,7 +24,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func notifyPermissionNeeded(request: PermissionRequest) {
         guard AppSettings.shared.notificationsEnabled, AppSettings.shared.notifyOnPermission, authorized else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Claude Code needs your permission"
+        content.title = "🙋 Claude Code needs your permission"
+        if let project = Self.projectName(fromCwd: request.cwd) { content.subtitle = project }
         content.body = request.summary ?? request.tool.map { "Wants to use \($0)" } ?? "Waiting on a decision"
         content.sound = .default
         content.categoryIdentifier = "PERMISSION_REQUEST"
@@ -35,10 +36,63 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard AppSettings.shared.notificationsEnabled, authorized, !appIsActive else { return }
         guard isEnabled(for: state) else { return }
         let content = UNMutableNotificationContent()
-        content.title = name
+        content.title = "\(state.emoji) \(name)"
         content.body = body(for: state)
         content.sound = .default
         post(content, id: "state-\(name)-\(state.rawValue)-\(Int(Date().timeIntervalSince1970))")
+    }
+
+    /// Fires whenever a Claude Code session actually ends (its process
+    /// exits/is killed) - unconditionally, like permission requests, since
+    /// this is a rarer, more significant event than a single turn finishing
+    /// (`notifyStateChange`'s `.review` case) and worth knowing about even
+    /// while looking right at the pet.
+    func notifySessionCompleted(name: String, finalState: PetState, cwd: String?, tasksCompleted: Int, tasksTotal: Int, durationSeconds: TimeInterval?) {
+        guard AppSettings.shared.notificationsEnabled, AppSettings.shared.notifyOnSessionEnd, authorized else { return }
+        let content = UNMutableNotificationContent()
+        let verb = finalState == .failed ? "ended after a failure" : "finished"
+        content.title = "\(finalState.emoji) \(name) \(verb)"
+        if let project = Self.projectName(fromCwd: cwd) { content.subtitle = project }
+        var parts: [String] = []
+        if tasksTotal > 0 { parts.append("\(tasksCompleted)/\(tasksTotal) tasks") }
+        if let durationSeconds, durationSeconds > 0 {
+            let minutes = Int(durationSeconds / 60)
+            parts.append(minutes > 0 ? "\(minutes)m" : "<1m")
+        }
+        content.body = parts.isEmpty ? "Session ended" : parts.joined(separator: " · ")
+        content.sound = .default
+        post(content, id: "session-end-\(Int(Date().timeIntervalSince1970))")
+    }
+
+    func notifyBudgetExceeded(spendUSD: Double, thresholdUSD: Double) {
+        guard AppSettings.shared.notificationsEnabled, authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "💰 Today's spend crossed your budget"
+        content.body = String(format: "Est. $%.2f so far, budget is $%.2f.", spendUSD, thresholdUSD)
+        content.sound = .default
+        post(content, id: "budget-\(Int(Date().timeIntervalSince1970))")
+    }
+
+    func notifyWeeklyDigest(sessions: Int, tasksCompleted: Int, secondsWorked: TimeInterval, costUSD: Double) {
+        guard AppSettings.shared.notificationsEnabled, authorized else { return }
+        let hours = secondsWorked / 3600
+        let content = UNMutableNotificationContent()
+        content.title = "📅 This week with Claude Code"
+        content.body = String(
+            format: "%d sessions, %d tasks, %.1fh worked, est. $%.2f.",
+            sessions, tasksCompleted, hours, costUSD
+        )
+        content.sound = .default
+        post(content, id: "weekly-digest-\(Int(Date().timeIntervalSince1970))")
+    }
+
+    /// The same "last path component of cwd" convention used for per-
+    /// project grouping/naming elsewhere (PetIdentity, HistoryLogic) - kept
+    /// local here since this is the only spot NotificationManager needs it.
+    private static func projectName(fromCwd cwd: String?) -> String? {
+        guard let cwd, !cwd.isEmpty else { return nil }
+        let name = URL(fileURLWithPath: cwd).lastPathComponent
+        return name.isEmpty ? nil : name
     }
 
     private func isEnabled(for state: PetState) -> Bool {

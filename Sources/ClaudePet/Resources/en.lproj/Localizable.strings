@@ -1,0 +1,13 @@
+/* Menu bar */
+"menu.tuckAway" = "Tuck Away Pet (⌘⇧P)";
+"menu.wakePet" = "Wake Pet (⌘⇧P)";
+"menu.jumpToSession" = "Jump to Session… (⌘⇧K)";
+"menu.multiSessionPets" = "Multi-Session Pets";
+"menu.wanderWhenIdle" = "Wander When Idle";
+"menu.petGallery" = "Pet Gallery…";
+"menu.sessionStats" = "Session Stats…";
+"menu.hookSetup" = "Hook Setup & Diagnostics…";
+"menu.welcomeTour" = "Welcome Tour…";
+"menu.preferences" = "Preferences…";
+"menu.checkForUpdates" = "Check for Updates…";
+"menu.quit" = "Quit Claude Pet";
