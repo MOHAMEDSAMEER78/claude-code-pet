@@ -1,14 +1,6 @@
 import Foundation
 import ClaudePetCore
 
-/// Reads token usage straight out of Claude Code's own transcript files -
-/// not the hook payloads, which don't carry usage data. Claude Code writes
-/// a JSONL transcript per session at
-/// ~/.claude/projects/<sanitized-cwd>/<session_id>.jsonl, and every
-/// assistant message in it carries a `usage` object (input/output/cache
-/// tokens, model). This is an undocumented, internal format - not a stable
-/// public API - so treat every number here as a best-effort estimate that
-/// can break silently if Claude Code changes its transcript layout.
 enum TranscriptUsage {
     struct Totals {
         var inputTokens: Int
@@ -17,20 +9,11 @@ enum TranscriptUsage {
         var cacheReadTokens: Int
         var estimatedCostUSD: Double
         var model: String?
-        /// True when `model` didn't match a known pricing tier and the
-        /// Sonnet-tier default was used instead - callers should mark the
-        /// cost as an extra-rough estimate (e.g. "(est.)") rather than
-        /// presenting it the same as a matched-model cost.
         var isRoughEstimate: Bool
 
         var totalTokens: Int { inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens }
     }
 
-    /// Rather than reproducing Claude Code's own cwd-sanitization scheme to
-    /// find the right project subdirectory, just search every project
-    /// directory for a file named `<sessionId>.jsonl` - the session id is
-    /// already unique, so this is both simpler and more robust to that
-    /// scheme changing.
     static func transcriptURL(forSession sessionId: String) -> URL? {
         let projectsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/projects", isDirectory: true)
@@ -44,10 +27,6 @@ enum TranscriptUsage {
         return nil
     }
 
-    /// Sums usage across every assistant message in the transcript. Reads
-    /// the whole file on each call - only invoked on demand (tray row
-    /// appearing, Stats window opening), never on SessionStore's refresh
-    /// timer, so an occasional multi-MB transcript is an acceptable cost.
     static func totals(forSession sessionId: String) -> Totals? {
         guard let url = transcriptURL(forSession: sessionId),
               let data = try? Data(contentsOf: url),

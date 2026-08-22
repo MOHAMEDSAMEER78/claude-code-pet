@@ -7,9 +7,6 @@ cask "claudepet" do
   desc "Menu-bar pet that shows live Claude Code session state"
   homepage "https://mohamedsameer78.github.io/claudepet/"
 
-  # Not code-signed/notarized - install requires bypassing Gatekeeper's
-  # "unidentified developer" warning once (System Settings > Privacy &
-  # Security > Open Anyway), same as a manually downloaded build.
   depends_on macos: ">= :ventura"
 
   app "ClaudePet.app"

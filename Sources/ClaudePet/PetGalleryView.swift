@@ -2,18 +2,11 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-/// Browse and apply any installed pet (from ~/.claude/pets or ~/.codex/pets)
-/// with a live preview, instead of cycling blind through "Next Pet" in the
-/// menu bar one at a time.
 struct PetGalleryView: View {
     @ObservedObject var library: PetLibrary
-    /// Known project keys (from currently active sessions) that can get
-    /// their own pet skin override, in addition to the global default.
     var projectKeys: [String] = []
 
     @State private var shareError: String?
-    /// nil = editing the global default; otherwise the project key whose
-    /// override is being edited.
     @State private var scope: String?
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: 12)]
@@ -105,9 +98,6 @@ struct PetGalleryView: View {
             if let index { library.select(index: index) } else { library.useEmoji() }
             return
         }
-        // Within a project's scope, picking "Emoji" pins the emoji fallback
-        // for that project specifically (not the same as having no override
-        // at all, which would fall back to the global default instead).
         if let dirName {
             library.setSelection(forKey: scope, dirName: dirName)
         } else {

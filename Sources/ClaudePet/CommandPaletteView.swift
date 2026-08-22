@@ -1,9 +1,6 @@
 import SwiftUI
 import ClaudePetCore
 
-/// Fuzzy-jump to any active session by project/title, opened with ⌘⇧K.
-/// The Activity Tray's urgency-sorted list is great at 2-3 concurrent
-/// sessions; past that, scanning for the one you want beats scrolling.
 struct CommandPaletteView: View {
     @ObservedObject var store: SessionStore
     let identityFor: (String) -> String

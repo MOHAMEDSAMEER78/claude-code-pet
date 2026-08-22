@@ -1,25 +1,13 @@
 import Foundation
 import Combine
 
-/// Tracks which custom pet (if any) is active. Scans ~/.claude/pets and
-/// ~/.codex/pets; falls back to the built-in emoji when none is found or
-/// selected.
 final class PetLibrary: ObservableObject {
     @Published private(set) var current: PetAsset?
     @Published private(set) var availableDirs: [URL] = []
     @Published private(set) var selectedIndex: Int?
-    /// project key (see PetIdentity.identityKey) -> folder name, or the
-    /// emoji sentinel. Only consulted by callers that resolve a per-project
-    /// asset via `asset(forKey:)`; everything else keeps using the single
-    /// global `current` exactly as before.
     @Published private(set) var perProjectSelection: [String: String] = [:]
     private var perProjectAssetCache: [String: PetAsset?] = [:]
 
-    /// Folder names (not indices) so the choice survives relaunches even if
-    /// `availablePets()` returns entries in a different order next time -
-    /// `contentsOfDirectory` makes no ordering guarantee. `nil` means "use
-    /// the built-in emoji", stored as an explicit sentinel so it's
-    /// distinguishable from "never chosen".
     private static let selectionKey = "selectedPetIdentifier"
     private static let perProjectSelectionKey = "perProjectPetSelection"
     private static let emojiSentinel = "__emoji__"
@@ -58,10 +46,6 @@ final class PetLibrary: ObservableObject {
         perProjectAssetCache.removeAll()
     }
 
-    /// Resolves the asset for a given project/session key (from
-    /// `PetIdentity.identityKey`): an explicit per-project override if one
-    /// exists, else the global default (`current`). Pass `nil` to always get
-    /// the global default.
     func asset(forKey key: String?) -> PetAsset? {
         guard let key, let selection = perProjectSelection[key] else { return current }
         if let cached = perProjectAssetCache[key] { return cached }
@@ -77,8 +61,6 @@ final class PetLibrary: ObservableObject {
         return resolved
     }
 
-    /// Sets (or, with `dirName: nil`, clears back to the global default) the
-    /// pet override for one project key.
     func setSelection(forKey key: String, dirName: String?) {
         if let dirName {
             perProjectSelection[key] = dirName
@@ -102,9 +84,6 @@ final class PetLibrary: ObservableObject {
         defaults.set(data, forKey: Self.perProjectSelectionKey)
     }
 
-    /// Jumps directly to a specific pet by index - used by the Pet Gallery,
-    /// which shows every installed pet at once rather than cycling one at a
-    /// time via the menu bar's "Next Pet".
     func select(index: Int) {
         guard availableDirs.indices.contains(index) else { return }
         selectedIndex = index

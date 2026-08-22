@@ -1,11 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// First-run setup + anytime diagnostics for the hook↔app bridge. Replaces
-/// "paste this Python snippet-merge script into your terminal" with a single
-/// button, and doubles as the self-serve fix for "the pet just isn't
-/// reacting" - the most likely support request for a tool with no
-/// first-party API to fall back on.
 struct HookSetupView: View {
     @State private var checks: [HookCheck] = HookInstaller.diagnose()
     @State private var installError: String?

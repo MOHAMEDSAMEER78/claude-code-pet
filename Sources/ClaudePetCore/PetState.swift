@@ -7,8 +7,6 @@ public enum PetState: String, Codable, CaseIterable {
     case review
     case failed
 
-    /// Higher = more urgent; used to pick which session's state "wins" when
-    /// several sessions are active at once.
     public var priority: Int {
         switch self {
         case .waitingPermission: return 4
@@ -39,8 +37,6 @@ public enum PetState: String, Codable, CaseIterable {
         }
     }
 
-    /// SF Symbol shown in the menu bar for this state - lets the status item
-    /// itself communicate at a glance without opening the pet panel.
     public var menuBarSymbol: String {
         switch self {
         case .idle: return "pawprint.fill"
@@ -67,10 +63,6 @@ public struct SessionStatus: Codable {
     public var tasksTotal: Int?
     public var title: String?
     public var claudePid: Int32?
-    /// Frozen to this session's first-ever write (see pet-hook.py) - absent
-    /// on session files written before this field existed, in which case
-    /// "time worked" for that session simply isn't computed rather than
-    /// guessed from a last-write timestamp.
     public var startedTs: TimeInterval?
 
     enum CodingKeys: String, CodingKey {

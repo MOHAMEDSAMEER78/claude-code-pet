@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""
-Claude Code `statusLine` wrapper for the ClaudePet menu-bar app.
-
-`statusLine` is a single-slot Claude Code setting (one command, invoked
-once per render with a JSON payload on stdin describing model/cost/
-context/rate-limit state, whose stdout becomes the terminal's status
-line). That JSON is the only place Claude Code exposes its 5-hour and
-7-day rate-limit usage percentages - they aren't available to the
-PreToolUse/PostToolUse/etc. hooks pet-hook.py already uses.
-
-Since only one command can hold that slot, this wrapper claims it,
-snapshots the usage fields ClaudePet cares about to
-~/.claude/pet/usage.json, then chains through to whatever command was
-registered before ClaudePet claimed the slot (recorded by HookInstaller
-in ~/.claude/pet/original-statusline.json at install time) - so a user
-who already had their own statusLine script sees no difference at all.
-If there was nothing registered before, this renders a plain equivalent
-of Claude Code's own default line instead of leaving the terminal blank.
-
-Keep this fast and dependency-free (stdlib only), same as pet-hook.py -
-it runs on every status line render.
-"""
 import json
 import os
 import subprocess
@@ -81,7 +59,7 @@ def main():
     try:
         write_usage(payload)
     except OSError:
-        pass  # usage tracking must never block the status line itself
+        pass
 
     original = None
     try:

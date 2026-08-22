@@ -2,27 +2,13 @@ import SwiftUI
 import Charts
 import ClaudePetCore
 
-/// A local-only activity summary drawn from SessionHistoryStore. "Time
-/// worked" only counts sessions whose file carried a started_ts (sessions
-/// recorded before that field existed contribute nothing rather than a
-/// guess), so it can under-count until older entries age out of the 7-day
-/// window.
 struct StatsView: View {
     let stats: SessionHistoryStore.Stats
-    /// Currently-active session ids, so we can show a live "what am I
-    /// spending right now" figure alongside the historical counters -
-    /// summed from Claude Code's own transcript files, not the history log.
     var activeSessionIds: [String] = []
-    /// Set when SessionStore had to skip a session file it couldn't decode
-    /// (e.g. written by a hook version newer than this app understands) -
-    /// surfaced here instead of the session just silently vanishing.
     var decodeWarning: String?
     var progress: PetProgress? = nil
     var dailyBuckets: [DailyBucket] = []
     var projectTotals: [ProjectTotal] = []
-    /// Claude Code's own 5-hour/7-day rate-limit usage, if the optional
-    /// statusLine wrapper has been enabled (Hook Setup & Diagnostics) - nil
-    /// means it was never turned on, not that it's zero.
     var usage: UsageSnapshot? = nil
 
     @State private var activeSpendUSD: Double?

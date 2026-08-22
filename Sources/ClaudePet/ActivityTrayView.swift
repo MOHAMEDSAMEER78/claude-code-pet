@@ -2,13 +2,8 @@ import SwiftUI
 import AppKit
 import ClaudePetCore
 
-/// One row in the Activity Tray: a session's chat summary, status, and
-/// current activity, selectable to jump to that session's terminal -
-/// mirroring the real Codex tray ("select an activity to open its chat").
 struct ActivityTrayRow: View {
     let session: EffectiveSession
-    /// Fallback name only for the brief window before a session's first
-    /// prompt has been captured (no chat summary exists yet).
     let fallbackName: String
     let onSelect: () -> Void
     let onKill: () -> Void
@@ -21,14 +16,9 @@ struct ActivityTrayRow: View {
     }
 
     private var cwdName: String {
-        session.bubbleText // "cwd · tool · summary" style text
+        session.bubbleText
     }
 
-    /// VS Code/Cursor don't expose a per-tab tty over AppleScript the way
-    /// Terminal.app/iTerm2 do, so clicking a session hosted in one of them
-    /// only reuses/raises that editor's whole window, not the exact
-    /// integrated terminal panel - surfaced here instead of silently
-    /// under-delivering on "select an activity to open its chat".
     private var focusHelpText: String {
         guard let app = session.terminalApp else { return "Click to focus this session's terminal" }
         if app.hasPrefix("Cursor") || app == "Code" || app == "Code Helper" {
@@ -108,9 +98,6 @@ struct ActivityTrayRow: View {
             Button("End Session", role: .destructive, action: onKill)
         }
         .task(id: session.sessionId) {
-            // Off the main actor's synchronous path deliberately - reading a
-            // transcript is a file read that can occasionally be a few MB,
-            // and this must never stall the tray from opening.
             let sessionId = session.sessionId
             let result = await Task.detached(priority: .utility) {
                 TranscriptUsage.totals(forSession: sessionId)
@@ -129,9 +116,6 @@ struct ActivityTrayRow: View {
         usd < 0.01 && usd > 0 ? "<$0.01" : String(format: "$%.2f", usd)
     }
 
-    /// Tap once to arm ("Sure?"), tap again within 3s to confirm - avoids a
-    /// blocking system alert in a non-activating panel while still
-    /// preventing an accidental single-click kill.
     @ViewBuilder
     private var killButton: some View {
         Button(action: handleKillTap) {
@@ -156,9 +140,6 @@ struct ActivityTrayRow: View {
     }
 }
 
-/// The full tray: every active Claude Code session, highest-priority first
-/// (needs-input > blocked > ready > running > idle - same ordering as the
-/// single-pet aggregate), opened by clicking the pet.
 struct ActivityTrayView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var settings: AppSettings = .shared

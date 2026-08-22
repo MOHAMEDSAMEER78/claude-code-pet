@@ -1,6 +1,5 @@
 import Foundation
 
-/// Which sessions the Activity Tray's state filter admits.
 public enum TrayFilter: String, CaseIterable {
     case all
     case needsAttention
@@ -15,8 +14,6 @@ public enum TrayFilter: String, CaseIterable {
     }
 }
 
-/// Pure search/filter/group logic for the Activity Tray - no SwiftUI, so it's
-/// unit-testable without a live SessionStore.
 public enum TrayLogic {
     public static func matchesSearch(_ session: EffectiveSession, searchText: String) -> Bool {
         guard !searchText.isEmpty else { return true }
@@ -31,25 +28,16 @@ public enum TrayLogic {
         switch filter {
         case .all: return true
         case .running: return session.state == .running
-        // "Needs attention" = anything ranked at or above ready-for-review:
-        // waiting-permission, failed, review - not running/idle.
         case .needsAttention: return session.state.priority >= PetState.review.priority
         }
     }
 
-    /// Sessions to show in a flat (non-grouped) tray: filtered, then
-    /// highest-priority first - the tray's original ordering.
     public static func visibleSessions(_ sessions: [EffectiveSession], searchText: String, filter: TrayFilter) -> [EffectiveSession] {
         sessions
             .filter { matchesSearch($0, searchText: searchText) && matchesFilter($0, filter: filter) }
             .sorted { $0.state.priority > $1.state.priority }
     }
 
-    /// Same filtering, additionally grouped by project (cwd's last path
-    /// component; sessions with no cwd fall into "Other"). Groups are
-    /// ordered by their most urgent session's priority, ties broken
-    /// alphabetically; sessions within a group keep the same priority order
-    /// as the flat view.
     public static func groupedByProject(_ sessions: [EffectiveSession], searchText: String, filter: TrayFilter) -> [(key: String, sessions: [EffectiveSession])] {
         let visible = sessions.filter { matchesSearch($0, searchText: searchText) && matchesFilter($0, filter: filter) }
         let groups = Dictionary(grouping: visible) { session -> String in

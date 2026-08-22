@@ -1,9 +1,5 @@
 name: Release
 
-# Builds a versioned ClaudePet.app.zip and publishes it to a GitHub Release
-# whenever a v* tag is pushed. Doesn't sign/notarize the bundle - it stays
-# ad-hoc signed like a local build_app.sh build, so Gatekeeper still shows
-# the standard "unidentified developer" warning on first install.
 on:
   push:
     tags:
@@ -13,18 +9,10 @@ jobs:
   release:
     name: build and publish
     runs-on: macos-latest
-    # The repo's default GITHUB_TOKEN permissions are read-only; this job
-    # needs to publish a release, push a branch with the generated
-    # cask/appcast, and open a PR for it (main stays protected - it can't
-    # push there directly).
     permissions:
       contents: write
       pull-requests: write
     env:
-      # `secrets` isn't a recognized context inside a step-level `if:` -
-      # GitHub's workflow validator rejects it outright (invalid workflow
-      # file, 0 jobs run). Route it through env: (where secrets IS allowed)
-      # so the two Sparkle steps below can gate on env instead.
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
@@ -53,14 +41,6 @@ jobs:
         run: |
           mkdir -p release-archives stable-archive
           ditto -c -k --sequesterRsrc --keepParent ClaudePet.app "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip"
-          # A second, version-less copy so the website's download button can
-          # link to a stable ".../releases/latest/download/ClaudePet.zip"
-          # URL that never needs updating - the versioned name above changes
-          # every release, so a link naming it directly would break the
-          # next time this workflow runs. Kept in its own directory, NOT
-          # release-archives/ - generate_appcast scans that whole directory
-          # and refuses to run if it finds two zips with identical content
-          # ("duplicate update archives"), which this copy would trigger.
           cp "release-archives/ClaudePet-${{ steps.version.outputs.version }}.zip" "stable-archive/ClaudePet.zip"
 
       - name: Compute checksum
@@ -83,14 +63,6 @@ jobs:
             stable-archive/ClaudePet.zip
           generate_release_notes: true
 
-      # Sparkle appcast - only runs once SPARKLE_PRIVATE_KEY is set (repo
-      # Settings > Secrets and variables > Actions); skipped otherwise so
-      # tagging a release doesn't hard-fail before that one-time setup step.
-      # generate_appcast ships inside the Sparkle binaryTarget's zip, which
-      # SPM only extracts into .build/artifacts/ once an actual `swift
-      # build` links the target (the "Build app bundle" step above) - it's
-      # not under .build/checkouts/Sparkle (that's just the dependency's git
-      # checkout of source, no prebuilt tools).
       - name: Generate and sign appcast
         if: ${{ env.HAS_SPARKLE_KEY == 'true' }}
         env:
@@ -109,11 +81,6 @@ jobs:
           mkdir -p docs
           cp release-archives/appcast.xml docs/appcast.xml
 
-      # main is protected (required review + status checks, no direct pushes,
-      # and bots can't use the admin bypass) - push the generated files to a
-      # standing branch and open (or update, if it's already open) a single
-      # persistent PR, rather than weakening branch protection to let the bot
-      # push directly or spawning a new PR on every release.
       - name: Update PR with generated release files
         if: ${{ env.HAS_SPARKLE_KEY == 'true' }}
         env:

@@ -1,12 +1,6 @@
 import SwiftUI
 import AppKit
 
-/// The single settings surface, backed by AppSettings - replaces toggles that
-/// previously only existed as scattered menu-bar checkmarks with no place to
-/// discover them together. Split into tabs once the flat single-Form layout
-/// grew past ~3 sections worth of toggles (Behavior/Startup vs. Alerts/
-/// per-state notification rules) - two clearly distinct concerns, not an
-/// arbitrary split.
 struct PreferencesView: View {
     @ObservedObject var settings: AppSettings
 
@@ -49,8 +43,6 @@ private struct GeneralPreferencesView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            // SMAppService is the source of truth - reconcile in case the
-            // user removed it from System Settings > Login Items directly.
             settings.launchAtLogin = LaunchAtLogin.isEnabled
         }
     }
@@ -107,14 +99,6 @@ private struct AlertsPreferencesView: View {
             .disabled(!settings.notificationsEnabled)
             Section("Budget") {
                 Toggle("Enable daily budget alerts", isOn: $settings.budgetAlertsEnabled)
-                // Row is always present (dimmed/disabled when off) rather than
-                // conditionally inserted, and the TextField's placeholder is
-                // deliberately empty: a non-empty placeholder on this numeric
-                // TextField (e.g. "10.00") reproducibly rendered as a floating
-                // duplicate ABOVE the real field in this Form/Section - a
-                // SwiftUI-on-macOS rendering bug, not a logic bug. The "Set an
-                // amount…" caption below covers the hint a placeholder would
-                // have given.
                 HStack {
                     Text("Daily budget")
                     Spacer()

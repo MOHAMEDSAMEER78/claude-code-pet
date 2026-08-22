@@ -1,21 +1,14 @@
 import SwiftUI
 import ClaudePetCore
 
-/// Colors/chrome pulled directly from a screen recording of the real Codex
-/// desktop pet overlay: a solid charcoal card (not a translucent macOS
-/// material), no speech-bubble tail, and a small round status badge that
-/// overlaps the card's top-right corner (spinner while working, green check
-/// when done).
 private enum CodexChrome {
     static let background = Color(red: 0.11, green: 0.11, blue: 0.13)
     static let border = Color.white.opacity(0.10)
     static let primaryText = Color.white
     static let secondaryText = Color.white.opacity(0.62)
-    static let accent = Color(red: 0.42, green: 0.55, blue: 0.98) // Codex's default-pet blue
+    static let accent = Color(red: 0.42, green: 0.55, blue: 0.98)
 }
 
-/// The real overlay's card has no tail - it just floats near the pet - and
-/// a status badge that overlaps its top-right corner.
 private struct CodexBubbleModifier: ViewModifier {
     var cornerRadius: CGFloat = 18
     var maxWidth: CGFloat?
@@ -44,9 +37,6 @@ private extension View {
     }
 }
 
-/// The small round status indicator seen overlapping the real bubble's
-/// top-right corner: a spinner while a task is running, a green check once
-/// it's done, matching the states the ClaudePet hook already tracks.
 private struct StatusBadge: View {
     let state: PetState
     @State private var blink = false
@@ -105,19 +95,11 @@ private struct StatusBadge: View {
     }
 }
 
-/// Reports the pet content's natural (unclipped) size so the hosting NSPanel
-/// can resize to fit - see PetPanel.fitToContent.
 private struct PetContentSizeKey: PreferenceKey {
     static var defaultValue: CGSize = .zero
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
 }
 
-/// The pet visuals (bubble + sprite/emoji), decoupled from where the state
-/// comes from - reused by both the single aggregate pet and per-session pets.
-/// Bundles the bubble's right-click actions so PetContentView doesn't need
-/// to know how to focus a terminal, read a transcript path, or end a
-/// session - each caller (aggregate PetView / per-session SinglePetView)
-/// supplies its own closures over whatever session it actually has.
 struct PetQuickActions {
     var bringToFront: () -> Void
     var copySummary: () -> Void
@@ -131,22 +113,13 @@ struct PetContentView: View {
     let bubbleText: String
     let footnote: String?
     @ObservedObject var library: PetLibrary
-    /// Project/session key used to resolve a per-project pet override; `nil`
-    /// always uses the global default (used by the single aggregate pet,
-    /// which can't show more than one skin at once anyway).
     var assetKey: String? = nil
     var overrideRow: String? = nil
-    /// A subtle color multiply applied to the sprite/emoji, reflecting
-    /// PetProgress's derived mood level. `nil`/`.white` leaves it unchanged.
     var moodTint: Color? = nil
     var tasksDone: Int? = nil
     var tasksTotal: Int? = nil
     var onTap: (() -> Void)?
     var onSizeChange: ((CGSize) -> Void)? = nil
-    /// Right-click actions on the bubble - reuses the same
-    /// bring-to-front/end-session plumbing the tray and command palette
-    /// already call, plus copy/open-transcript. `nil` when there's no
-    /// resolvable session to act on (e.g. aggregate view while idle).
     var quickActions: PetQuickActions? = nil
 
     @State private var bobbing = false
@@ -248,10 +221,6 @@ struct PetContentView: View {
     }
 }
 
-/// The Codex-style "activity tray" card: pet name + a status message, with a
-/// step-progress ring (e.g. "5/8") when the current turn has an active task
-/// list. Replaces a plain status-text bubble with something closer to the
-/// real notification card (name, message, progress badge).
 struct ActivityCard: View {
     let state: PetState
     let name: String
@@ -308,7 +277,6 @@ struct TaskProgressRing: View {
     }
 }
 
-/// Single-pet mode: reflects the highest-priority state across all sessions.
 struct PetView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var library: PetLibrary
@@ -317,8 +285,6 @@ struct PetView: View {
     var onOpenTray: (() -> Void)? = nil
     var onSizeChange: ((CGSize) -> Void)? = nil
 
-    /// A pale-to-warm gold tint at higher mood levels; unleveled pets are
-    /// untinted so most users never notice anything changed.
     private var moodTint: Color? {
         switch progressStore.progress.level {
         case 0: return nil
@@ -365,7 +331,6 @@ struct PetView: View {
     }
 }
 
-/// Multi-pet mode: one panel's content per active Claude Code session.
 struct SinglePetView: View {
     @ObservedObject var viewModel: SessionPetViewModel
     @ObservedObject var library: PetLibrary

@@ -1,21 +1,13 @@
 import Carbon.HIToolbox
 import AppKit
 
-/// Registers a system-wide hotkey (default Cmd+Shift+P) via the Carbon Event
-/// Manager. Unlike an NSEvent global monitor, RegisterEventHotKey needs no
-/// Accessibility/Input Monitoring permission.
 final class HotKeyManager {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private let onPress: () -> Void
     private let id: UInt32
 
-    private static let signature: OSType = 0x5065_7448 // 'PetH'
-    /// Each instance needs a distinct id: InstallEventHandler installs on the
-    /// shared application event target, so every installed handler observes
-    /// every hotkey press event class-wide - without checking the event's
-    /// own hotKeyID, a second registered hotkey (e.g. the command palette's)
-    /// would also fire the first instance's (e.g. show/hide)'s callback.
+    private static let signature: OSType = 0x5065_7448
     private static var nextId: UInt32 = 1
 
     init(keyCode: UInt32,
@@ -39,13 +31,6 @@ final class HotKeyManager {
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
-            // Handlers installed on the shared application event target form
-            // a chain; returning noErr tells Carbon "fully handled, stop
-            // here" and swallows the event before any earlier-installed
-            // handler sees it. Returning eventNotHandledErr on a non-match
-            // instead lets the event fall through to the next handler in the
-            // chain (e.g. another HotKeyManager instance's), so multiple
-            // hotkeys registered this way can coexist.
             guard let event, let userData else { return OSStatus(eventNotHandledErr) }
             var pressedID = EventHotKeyID()
             GetEventParameter(

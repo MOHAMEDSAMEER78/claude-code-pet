@@ -1,30 +1,18 @@
 import AppKit
 import ClaudePetCore
 
-/// Codex-compatible pet: a `pet.json` manifest + one spritesheet PNG.
-/// The real Codex manifest (per community hatch-pet generators) only has
-/// `id`/`displayName`/`description`/`spritesheetPath` - there's no
-/// frame-count or fps field. The atlas is a fixed 8-col x 9-row convention
-/// (192x208 cells, rows: idle, running-right, running-left, waving,
-/// jumping, failed, waiting, running, review) and each row's frame count is
-/// inferred by scanning for the first fully-transparent cell, not declared
-/// in JSON. We still accept an explicit `rows`/`fps` override for our own
-/// placeholder/custom pets, but auto-detect when they're absent so real
-/// Codex/hatch-pet assets just work.
 struct PetManifest: Codable {
-    // Real Codex schema
     var id: String?
     var displayName: String?
     var description: String?
     var spritesheetPath: String?
 
-    // Legacy/back-compat fields from our earlier, guessed schema
     var name: String?
     var spritesheet: String?
     var frameWidth: Int?
     var frameHeight: Int?
     var fps: Double?
-    var rows: [String: Int]? // optional override: row name -> frame count
+    var rows: [String: Int]?
 
     var resolvedName: String? { displayName ?? name }
     var resolvedSpritesheet: String? { spritesheetPath ?? spritesheet }
@@ -32,10 +20,6 @@ struct PetManifest: Codable {
     static let defaultRowOrder = [
         "idle", "running-right", "running-left", "waving",
         "jumping", "failed", "waiting", "running", "review",
-        // Optional idle-variety rows, appended after the fixed Codex 9-row
-        // convention so existing 9-row spritesheets are unaffected (rows
-        // beyond their sheet height simply detect zero frames and are
-        // skipped - see PetAssetLoader.load).
         "stretching", "looking-around",
     ]
 }
@@ -43,14 +27,12 @@ struct PetManifest: Codable {
 struct PetAsset {
     let name: String
     let fps: Double
-    /// state row name -> ordered frame images
     let frames: [String: [NSImage]]
 
     func hasRow(_ name: String) -> Bool {
         !(frames[name]?.isEmpty ?? true)
     }
 
-    /// Maps our PetState to the Codex row name it should play.
     static func rowName(for state: PetState) -> String {
         switch state {
         case .idle: return "idle"
@@ -73,9 +55,6 @@ struct PetAsset {
 }
 
 enum PetAssetLoader {
-    /// Directories scanned for pet folders, each expected to contain
-    /// pet.json + a spritesheet image. Claude-native pets take priority;
-    /// Codex's own pet folders are scanned too for drop-in compatibility.
     static func searchDirectories() -> [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return [
@@ -102,9 +81,6 @@ enum PetAssetLoader {
         return found
     }
 
-    /// A cell counts as "content" if any sampled pixel in it is non-transparent.
-    /// Real assets pad unused trailing frames with a fully-transparent cell,
-    /// which is how frame count is meant to be inferred (no JSON field for it).
     private static func cellHasContent(_ rep: NSBitmapImageRep, x: Int, y: Int, w: Int, h: Int) -> Bool {
         let samples = 5
         for sx in 0..<samples {
@@ -130,9 +106,6 @@ enum PetAssetLoader {
         if let explicit = manifest.resolvedSpritesheet {
             sheetURL = dir.appendingPathComponent(explicit)
         } else {
-            // Real Codex/hatch-pet manifests carry no spritesheet filename at
-            // all - the convention is spritesheet.webp, falling back to .png
-            // for our own earlier-format placeholder pets.
             let webp = dir.appendingPathComponent("spritesheet.webp")
             let png = dir.appendingPathComponent("spritesheet.png")
             sheetURL = FileManager.default.fileExists(atPath: webp.path) ? webp : png
@@ -146,8 +119,6 @@ enum PetAssetLoader {
         let cols = cgSheet.width / frameW
         let rowOrder = PetManifest.defaultRowOrder
         let rep = NSBitmapImageRep(cgImage: cgSheet)
-        // Bitmap coordinates: colorAt uses top-left origin matching our
-        // existing crop convention (row 0 = idle at the top of the sheet).
         let explicitRows = manifest.rows
 
         var framesByRow: [String: [NSImage]] = [:]

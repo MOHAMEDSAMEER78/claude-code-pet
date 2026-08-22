@@ -2,10 +2,6 @@ import AppKit
 import Combine
 import ClaudePetCore
 
-/// Per-session view model backing one multi-pet-mode panel. Also owns the
-/// "click to focus terminal" action, which uses TerminalFocuser to select
-/// the exact tab/window this session is running in (via its tty), not just
-/// activate the app.
 final class SessionPetViewModel: ObservableObject {
     let sessionId: String
     let identityName: String
@@ -47,8 +43,6 @@ final class SessionPetViewModel: ObservableObject {
         title = session.title
     }
 
-    /// Key used to resolve a per-project pet skin override - same key used
-    /// for per-project naming/tray-grouping.
     var assetKey: String {
         PetIdentity.identityKey(sessionId: sessionId, cwd: cwd, groupByProject: true)
     }

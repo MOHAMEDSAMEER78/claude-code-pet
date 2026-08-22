@@ -1,11 +1,6 @@
 import Foundation
 import Combine
 
-/// The app's single settings model. Every persisted preference lives here as
-/// a typed, observable property instead of scattered raw `UserDefaults`
-/// key/get/set pairs across AppDelegate/PetAnimator/etc. - one place to look,
-/// one place to add a new toggle, and a real backing store for the
-/// Preferences window.
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
@@ -44,27 +39,15 @@ final class AppSettings: ObservableObject {
     @Published var wanderEnabled: Bool {
         didSet { defaults.set(wanderEnabled, forKey: Key.wanderEnabled.rawValue) }
     }
-    /// Short chime on states that need attention (waiting-permission, review,
-    /// failed) - off by default since not everyone wants audible alerts from
-    /// a pet.
     @Published var soundEnabled: Bool {
         didSet { defaults.set(soundEnabled, forKey: Key.soundEnabled.rawValue) }
     }
-    /// A native banner when a permission request needs a decision and the
-    /// app isn't frontmost - on by default, since a missed permission bubble
-    /// silently falls back to the CLI prompt with no other signal.
     @Published var notificationsEnabled: Bool {
         didSet { defaults.set(notificationsEnabled, forKey: Key.notificationsEnabled.rawValue) }
     }
-    /// Mirrors SMAppService's actual registration state; LaunchAtLogin is the
-    /// source of truth, this just reflects it for the Preferences UI.
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin.rawValue) }
     }
-    /// Per-state notification rules, replacing NotificationManager's
-    /// previously-hardcoded "only failed/review, always permission" gating.
-    /// Defaults preserve exactly that prior behavior so existing users see
-    /// no change unless they open Preferences.
     @Published var notifyOnFailed: Bool {
         didSet { defaults.set(notifyOnFailed, forKey: Key.notifyOnFailed.rawValue) }
     }
@@ -77,34 +60,21 @@ final class AppSettings: ObservableObject {
     @Published var notifyOnRunning: Bool {
         didSet { defaults.set(notifyOnRunning, forKey: Key.notifyOnRunning.rawValue) }
     }
-    /// Fires unconditionally (like permission requests, not gated on the
-    /// pet being hidden) since a session actually ending - not just one
-    /// turn finishing - is the one event you'd want to know about even
-    /// while looking right at the pet.
     @Published var notifyOnSessionEnd: Bool {
         didSet { defaults.set(notifyOnSessionEnd, forKey: Key.notifyOnSessionEnd.rawValue) }
     }
-    /// In Multi-Session Pets mode, key each pet's display name off its
-    /// project directory instead of its session id, so every session in the
-    /// same repo consistently shows the same named pet across relaunches.
     @Published var groupPetsByProject: Bool {
         didSet { defaults.set(groupPetsByProject, forKey: Key.groupPetsByProject.rawValue) }
     }
-    /// Groups the Activity Tray's session list by project (cwd basename)
-    /// instead of one flat priority-sorted list.
     @Published var groupTrayByProject: Bool {
         didSet { defaults.set(groupTrayByProject, forKey: Key.groupTrayByProject.rawValue) }
     }
-    /// Off by default - a budget only makes sense once the user sets one.
     @Published var budgetAlertsEnabled: Bool {
         didSet { defaults.set(budgetAlertsEnabled, forKey: Key.budgetAlertsEnabled.rawValue) }
     }
-    /// `nil`/0 means "not set yet" - the alert check treats either as "no budget".
     @Published var dailyBudgetUSD: Double {
         didSet { defaults.set(dailyBudgetUSD, forKey: Key.dailyBudgetUSD.rawValue) }
     }
-    /// Date (not just day) of the last time the budget alert fired, so it
-    /// only fires once per calendar day even while checks keep running.
     @Published var lastBudgetAlertDate: Date? {
         didSet { defaults.set(lastBudgetAlertDate?.timeIntervalSince1970, forKey: Key.lastBudgetAlertDate.rawValue) }
     }
@@ -114,19 +84,12 @@ final class AppSettings: ObservableObject {
     @Published var lastDigestSentAt: Date? {
         didSet { defaults.set(lastDigestSentAt?.timeIntervalSince1970, forKey: Key.lastDigestSentAt.rawValue) }
     }
-    /// `NSScreenNumber` (from a screen's deviceDescription) of the display
-    /// the pet should stay docked to; nil/disconnected falls back to
-    /// `NSScreen.main`.
     @Published var preferredScreenID: String? {
         didSet { defaults.set(preferredScreenID, forKey: Key.preferredScreenID.rawValue) }
     }
     @Published var preferredCorner: ScreenCorner {
         didSet { defaults.set(preferredCorner.rawValue, forKey: Key.preferredCorner.rawValue) }
     }
-    /// Shows a "Claude usage" row inside the menu bar dropdown when usage
-    /// tracking (statusLine wrapper) has been enabled and has data. On by
-    /// default since it's a no-op with no visible effect until that opt-in
-    /// feature is turned on anyway.
     @Published var showUsageInMenuBar: Bool {
         didSet { defaults.set(showUsageInMenuBar, forKey: Key.showUsageInMenuBar.rawValue) }
     }
@@ -134,8 +97,6 @@ final class AppSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.multiSessionMode = defaults.bool(forKey: Key.multiSessionMode.rawValue)
-        // wanderEnabled/notificationsEnabled/notifyOnFailed/notifyOnReview/
-        // notifyOnPermission default to true unless explicitly turned off.
         self.wanderEnabled = defaults.object(forKey: Key.wanderEnabled.rawValue) == nil
             ? true : defaults.bool(forKey: Key.wanderEnabled.rawValue)
         self.soundEnabled = defaults.bool(forKey: Key.soundEnabled.rawValue)

@@ -1,11 +1,5 @@
 import Foundation
 
-/// One completed Claude Code session, as appended to the local
-/// history.jsonl log. `ts` is the record time (when the entry was written),
-/// not a trustworthy session-start time - `durationSeconds` is only
-/// populated when the session's file carried a `started_ts` (frozen to the
-/// session's first-ever hook write), so older/mid-flight sessions without
-/// one simply omit a duration rather than guessing.
 public struct HistoryEntry: Codable {
     public var ts: TimeInterval
     public var sessionId: String
@@ -15,10 +9,6 @@ public struct HistoryEntry: Codable {
     public var tasksCompleted: Int
     public var tasksTotal: Int
     public var durationSeconds: TimeInterval?
-    /// Snapshotted from the session's transcript at end-of-session (best
-    /// effort - `nil` for entries recorded before this field existed, or if
-    /// the transcript couldn't be read in time). Never re-derived later:
-    /// Claude Code may prune/rotate transcript files after a session ends.
     public var costUSD: Double?
     public var inputTokens: Int?
     public var outputTokens: Int?
@@ -49,9 +39,6 @@ public struct HistoryStats: Equatable {
     public var sessionsToday: Int
     public var sessionsThisWeek: Int
     public var tasksCompletedThisWeek: Int
-    /// Sum of `durationSeconds` across entries with a known duration only -
-    /// entries without one (no started_ts) contribute nothing, rather than
-    /// being estimated.
     public var secondsWorkedToday: TimeInterval
     public var secondsWorkedThisWeek: TimeInterval
 
@@ -67,10 +54,6 @@ public struct HistoryStats: Equatable {
     }
 }
 
-/// A pet's derived "mood": how many sessions/tasks the user has ever
-/// finished, and their current daily streak. Recomputed live from
-/// history.jsonl on every read, same as HistoryStats - there's no separate
-/// persisted aggregate to keep in sync.
 public struct PetProgress: Equatable {
     public var totalSessions: Int
     public var totalTasksCompleted: Int
@@ -113,8 +96,6 @@ public struct ProjectTotal: Equatable {
     }
 }
 
-/// Pure counting logic over history entries - no file I/O - extracted from
-/// SessionHistoryStore so it's unit-testable without a live history.jsonl.
 public enum HistoryLogic {
     public static func stats(from entries: [HistoryEntry], now: Date, calendar: Calendar = .current) -> HistoryStats {
         let startOfToday = calendar.startOfDay(for: now)
@@ -132,18 +113,12 @@ public enum HistoryLogic {
         )
     }
 
-    /// Count of consecutive calendar days (ending today or yesterday - a
-    /// session yesterday but none yet today still counts as an active
-    /// streak, since today isn't over) with at least one recorded session
-    /// end. A day with zero sessions breaks the streak.
     public static func currentStreak(from entries: [HistoryEntry], now: Date, calendar: Calendar = .current) -> Int {
         guard !entries.isEmpty else { return 0 }
         let activeDays = Set(entries.map { calendar.startOfDay(for: Date(timeIntervalSince1970: $0.ts)) })
         var streak = 0
         var cursor = calendar.startOfDay(for: now)
         if !activeDays.contains(cursor) {
-            // Nothing recorded yet today - that's fine, check if yesterday
-            // keeps a streak alive; if not, the streak is simply 0.
             guard let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor), activeDays.contains(yesterday) else {
                 return 0
             }
@@ -157,8 +132,6 @@ public enum HistoryLogic {
         return streak
     }
 
-    /// xp = 10 per completed task + 5 per finished session; level = floor(sqrt(xp/100)),
-    /// i.e. level N requires (N^2 * 100) xp - deliberately simple and tunable in one place.
     public static func progress(from entries: [HistoryEntry], now: Date = Date(), calendar: Calendar = .current) -> PetProgress {
         let totalTasks = entries.reduce(0) { $0 + $1.tasksCompleted }
         let xp = totalTasks * 10 + entries.count * 5
@@ -171,10 +144,6 @@ public enum HistoryLogic {
         )
     }
 
-    /// One bucket per calendar day over the trailing `days` days (oldest
-    /// first), for a spend/time trend chart. Entries with no `costUSD` (pre-
-    /// tracking, or unread transcript) contribute 0 to the sum but the
-    /// session is still counted.
     public static func dailyBuckets(from entries: [HistoryEntry], days: Int, now: Date, calendar: Calendar = .current) -> [DailyBucket] {
         let startOfToday = calendar.startOfDay(for: now)
         let byDay = Dictionary(grouping: entries) { calendar.startOfDay(for: Date(timeIntervalSince1970: $0.ts)) }
@@ -190,9 +159,6 @@ public enum HistoryLogic {
         }
     }
 
-    /// Total spend/session-count per project (cwd basename), sorted by
-    /// highest spend first. Entries with no `cwd` are grouped under
-    /// "Unknown".
     public static func perProjectTotals(from entries: [HistoryEntry]) -> [ProjectTotal] {
         let byProject = Dictionary(grouping: entries) { entry -> String in
             guard let cwd = entry.cwd, !cwd.isEmpty else { return "Unknown" }

@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import ClaudePetCore
 
-/// Uses swift-testing (bundled with the toolchain) rather than XCTest, since
-/// XCTest.framework ships only with full Xcode - this keeps `swift test`
-/// working on a CLT-only machine, matching the project's no-Xcode-required
-/// build story.
 struct SessionLogicTests {
     private func status(
         id: String = "s1", state: PetState = .running, ts: TimeInterval = 1000,
@@ -18,8 +14,6 @@ struct SessionLogicTests {
             tasksDone: nil, tasksTotal: nil, title: nil, claudePid: nil, startedTs: nil
         )
     }
-
-    // MARK: - decodeStatus
 
     @Test func decodeStatusSucceedsForWellFormedData() {
         let json = """
@@ -59,8 +53,6 @@ struct SessionLogicTests {
         }
     }
 
-    // MARK: - effectiveState
-
     @Test func reviewDecaysToIdleAfterWindow() {
         let s = status(state: .review, ts: 1000)
         let result = SessionLogic.effectiveState(status: s, now: 1021, reviewDecaySeconds: 20)
@@ -79,15 +71,11 @@ struct SessionLogicTests {
         #expect(result == .failed)
     }
 
-    // MARK: - isStale
-
     @Test func staleAfterThreshold() {
         let s = status(ts: 1000)
         #expect(SessionLogic.isStale(status: s, now: 1000 + 1801, staleSeconds: 1800))
         #expect(!SessionLogic.isStale(status: s, now: 1000 + 1799, staleSeconds: 1800))
     }
-
-    // MARK: - bubbleText
 
     @Test func bubbleTextPrefersAction() {
         let s = status(cwd: "/x/my-project", tool: "Bash", summary: "npm test", action: "Running `npm test`")
@@ -103,8 +91,6 @@ struct SessionLogicTests {
         let s = status(cwd: nil, tool: nil, summary: nil, action: nil)
         #expect(SessionLogic.bubbleText(for: s, state: .idle) == "Idle")
     }
-
-    // MARK: - winner
 
     private func session(id: String, state: PetState, ts: TimeInterval) -> EffectiveSession {
         EffectiveSession(
