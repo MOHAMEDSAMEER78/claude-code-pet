@@ -1,13 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// A Spotlight-style floating panel: centered near the top third of the main
-/// screen, takes keyboard focus (needed for the search field), closes itself
-/// on Escape or when it loses key status.
 final class CommandPalettePanel: NSPanel {
-    // Tall enough to fit the search field, divider, and full session list
-    // (up to the ScrollView's 260pt cap) without clipping on first appearance;
-    // resizeToFit(height:) then shrinks it to the SwiftUI content's real size.
     private static let initialHeight: CGFloat = 340
 
     init(rootView: some View) {
@@ -35,8 +29,6 @@ final class CommandPalettePanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
 
-    /// Resizes to the SwiftUI content's actual height, keeping the top edge
-    /// fixed so the panel grows/shrinks downward like Spotlight.
     func resizeToFit(height: CGFloat) {
         var newFrame = frame
         let delta = newFrame.height - height

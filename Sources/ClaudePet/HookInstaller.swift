@@ -1,6 +1,5 @@
 import Foundation
 
-/// One line of the hook-setup diagnostic checklist.
 struct HookCheck: Identifiable {
     enum Status { case ok, warning, missing }
     let id = UUID()
@@ -9,16 +8,6 @@ struct HookCheck: Identifiable {
     let detail: String
 }
 
-/// Installs and diagnoses the hook↔app bridge. Previously the only install
-/// path was "hand-merge a JSON snippet into ~/.claude/settings.json, pointing
-/// at wherever you happened to clone the repo" - fragile (moving/deleting the
-/// checkout silently breaks every hook) and a real barrier to anyone who
-/// isn't comfortable editing JSON by hand.
-///
-/// This installs pet-hook.py to a fixed, checkout-independent location
-/// (~/.claude/pet/bin/pet-hook.py) and points the hook config at that
-/// instead, so the app keeps working even if the original git checkout it
-/// was built from is moved or deleted.
 enum HookInstaller {
     static let installedHookURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/pet/bin/pet-hook.py")
@@ -28,8 +17,6 @@ enum HookInstaller {
         .appendingPathComponent(".claude/pet/original-statusline.json")
     private static let settingsURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/settings.json")
-    /// The placeholder path baked into the bundled settings-snippet.json,
-    /// rewritten at install time to `installedHookURL`.
     private static let placeholderPath = "~/claude-code-pet/hooks/pet-hook.py"
 
     enum InstallError: LocalizedError {
@@ -49,11 +36,6 @@ enum HookInstaller {
         }
     }
 
-    /// Copies the bundled hook script to its stable install location, merges
-    /// the bundled hook config into ~/.claude/settings.json (backing it up
-    /// first), and rewrites the placeholder path to the installed one.
-    /// Existing unrelated hooks are preserved - matcher groups are appended,
-    /// never replacing the event's existing entries wholesale.
     static func install() throws {
         guard let scriptData = Bundle.main.url(forResource: "pet-hook", withExtension: "py")
             .flatMap({ try? Data(contentsOf: $0) })
@@ -85,11 +67,6 @@ enum HookInstaller {
 
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
         for (event, groups) in snippetHooks {
-            // Strip any ClaudePet entries from a previous install/repair
-            // before appending the fresh set - otherwise running this twice
-            // (first-run offer, then a manual "Repair Hooks" click) leaves
-            // TWO copies of the same hook wired in, which fire concurrently
-            // on every event and race on writing the same session file.
             let existingGroups = (hooks[event] as? [Any] ?? []).filter { !isClaudePetGroup($0) }
             let newGroups = groups as? [Any] ?? []
             hooks[event] = existingGroups + newGroups
@@ -104,18 +81,6 @@ enum HookInstaller {
         }
     }
 
-    /// `statusLine` is a single-slot Claude Code setting - it's the only
-    /// place the 5-hour/7-day rate-limit usage percentages are exposed
-    /// (pet-hook.py's existing hooks never see them), but claiming it is a
-    /// bigger behavioral change than adding a hook matcher group, since it
-    /// controls what the user's terminal actually renders. So this is a
-    /// separate, explicitly opt-in step, not folded into `install()`.
-    ///
-    /// Whatever `statusLine` command was already configured (if any) is
-    /// saved to `original-statusline.json` so the installed wrapper can
-    /// chain through to it - the user's own status line output is meant to
-    /// be completely unaffected, just with ClaudePet also snapshotting the
-    /// usage fields it cares about on the side.
     static func installStatusLineWrapper() throws {
         guard let scriptData = Bundle.main.url(forResource: "pet-statusline", withExtension: "py")
             .flatMap({ try? Data(contentsOf: $0) })
@@ -139,9 +104,6 @@ enum HookInstaller {
         let currentStatusLine = settings["statusLine"] as? [String: Any]
         let alreadyOurs = (currentStatusLine?["command"] as? String) == installedStatusLineURL.path
         if !alreadyOurs {
-            // Only overwrite the saved "original" once - re-running this
-            // (e.g. a later Repair) must not accidentally save ClaudePet's
-            // own wrapper as the thing to chain to.
             let originalData: Data
             if let currentStatusLine {
                 originalData = try JSONSerialization.data(withJSONObject: currentStatusLine)
@@ -161,8 +123,6 @@ enum HookInstaller {
         }
     }
 
-    /// Restores whatever `statusLine` command (if any) was registered
-    /// before `installStatusLineWrapper()` claimed the slot.
     static func uninstallStatusLineWrapper() throws {
         guard let existingData = try? Data(contentsOf: settingsURL),
               var settings = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any]
@@ -187,9 +147,6 @@ enum HookInstaller {
         }
     }
 
-    /// Read-only health check, safe to run any time (including before
-    /// install) - surfaced from the menu bar as "Diagnose Hooks…" so a "the
-    /// pet just isn't reacting" report becomes self-serve.
     static func diagnose() -> [HookCheck] {
         var checks: [HookCheck] = []
 
@@ -240,9 +197,6 @@ enum HookInstaller {
         return checks
     }
 
-    /// Same idea as `diagnose()`, but for the opt-in statusLine wrapper -
-    /// kept separate since, unlike the core hooks, this is an optional
-    /// feature most users won't have (or want) turned on.
     static func diagnoseStatusLine() -> [HookCheck] {
         var checks: [HookCheck] = []
 
@@ -290,10 +244,6 @@ enum HookInstaller {
         return checks
     }
 
-    /// True if a hook-config "group" (one matcher's `{matcher, hooks}` entry)
-    /// contains a `pet-hook.py` command - whether pointing at the old
-    /// checkout-relative placeholder or the installed path, so re-running
-    /// install() cleans up entries from either era.
     private static func isClaudePetGroup(_ group: Any) -> Bool {
         guard let group = group as? [String: Any], let entries = group["hooks"] as? [[String: Any]] else { return false }
         return entries.contains { ($0["command"] as? String)?.contains("pet-hook.py") ?? false }

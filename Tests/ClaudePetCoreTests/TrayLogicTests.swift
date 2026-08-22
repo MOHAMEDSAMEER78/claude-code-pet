@@ -13,8 +13,6 @@ struct TrayLogicTests {
         )
     }
 
-    // MARK: - matchesSearch
-
     @Test func emptySearchMatchesEverything() {
         #expect(TrayLogic.matchesSearch(session(id: "a"), searchText: ""))
     }
@@ -30,8 +28,6 @@ struct TrayLogicTests {
         #expect(TrayLogic.matchesSearch(s, searchText: "my-project"))
     }
 
-    // MARK: - matchesFilter
-
     @Test func needsAttentionExcludesRunningAndIdle() {
         #expect(!TrayLogic.matchesFilter(session(id: "a", state: .running), filter: .needsAttention))
         #expect(!TrayLogic.matchesFilter(session(id: "a", state: .idle), filter: .needsAttention))
@@ -45,8 +41,6 @@ struct TrayLogicTests {
         #expect(!TrayLogic.matchesFilter(session(id: "a", state: .idle), filter: .running))
     }
 
-    // MARK: - visibleSessions
-
     @Test func visibleSessionsFiltersAndSortsByPriority() {
         let sessions = [
             session(id: "a", state: .idle),
@@ -56,8 +50,6 @@ struct TrayLogicTests {
         let result = TrayLogic.visibleSessions(sessions, searchText: "", filter: .all)
         #expect(result.map(\.sessionId) == ["b", "c", "a"])
     }
-
-    // MARK: - groupedByProject
 
     @Test func groupsSessionsByCwdBasename() {
         let sessions = [

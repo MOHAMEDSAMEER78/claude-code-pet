@@ -17,14 +17,12 @@ struct HistoryLogicTests {
     private var referenceNow: Date { Date(timeIntervalSince1970: 1_700_000_000) }
     private var calendar: Calendar { Calendar(identifier: .gregorian) }
 
-    // MARK: - stats
-
     @Test func countsOnlyTodaysEntriesForSessionsToday() {
         let now = referenceNow
         let startOfToday = calendar.startOfDay(for: now).timeIntervalSince1970
         let entries = [
-            entry(ts: startOfToday + 10), // today
-            entry(ts: startOfToday - 10), // yesterday
+            entry(ts: startOfToday + 10),
+            entry(ts: startOfToday - 10),
         ]
         let stats = HistoryLogic.stats(from: entries, now: now, calendar: calendar)
         #expect(stats.sessionsToday == 1)
@@ -52,7 +50,7 @@ struct HistoryLogicTests {
         let startOfToday = calendar.startOfDay(for: now).timeIntervalSince1970
         let entries = [
             entry(ts: startOfToday + 10, durationSeconds: 600),
-            entry(ts: startOfToday + 20, durationSeconds: nil), // no started_ts - contributes 0
+            entry(ts: startOfToday + 20, durationSeconds: nil),
         ]
         let stats = HistoryLogic.stats(from: entries, now: now, calendar: calendar)
         #expect(stats.secondsWorkedToday == 600)
@@ -70,8 +68,6 @@ struct HistoryLogicTests {
         let stats = HistoryLogic.stats(from: [], now: referenceNow, calendar: calendar)
         #expect(stats == HistoryStats(sessionsToday: 0, sessionsThisWeek: 0, tasksCompletedThisWeek: 0))
     }
-
-    // MARK: - currentStreak
 
     @Test func streakCountsBackFromTodayWhenTodayHasASession() {
         let now = referenceNow
@@ -92,7 +88,7 @@ struct HistoryLogicTests {
         let now = referenceNow
         let startOfToday = calendar.startOfDay(for: now).timeIntervalSince1970
         let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: now)!.timeIntervalSince1970
-        let entries = [entry(ts: startOfToday + 5), entry(ts: twoDaysAgo)] // yesterday missing
+        let entries = [entry(ts: startOfToday + 5), entry(ts: twoDaysAgo)]
         #expect(HistoryLogic.currentStreak(from: entries, now: now, calendar: calendar) == 1)
     }
 
@@ -100,26 +96,21 @@ struct HistoryLogicTests {
         #expect(HistoryLogic.currentStreak(from: [], now: referenceNow, calendar: calendar) == 0)
     }
 
-    // MARK: - progress
-
     @Test func progressComputesXpFromTasksAndSessions() {
         let entries = [entry(ts: referenceNow.timeIntervalSince1970, tasksCompleted: 4)]
         let progress = HistoryLogic.progress(from: entries, now: referenceNow, calendar: calendar)
         #expect(progress.totalSessions == 1)
         #expect(progress.totalTasksCompleted == 4)
-        #expect(progress.xp == 45) // 4*10 + 1*5
-        #expect(progress.level == 0) // sqrt(45/100) floors to 0
+        #expect(progress.xp == 45)
+        #expect(progress.level == 0)
     }
 
     @Test func progressLevelsUpPastXpThreshold() {
-        // 10 sessions * 5 xp each + enough tasks to clear the level-1 threshold (100 xp).
         let entries = (0..<10).map { _ in entry(ts: referenceNow.timeIntervalSince1970, tasksCompleted: 5) }
         let progress = HistoryLogic.progress(from: entries, now: referenceNow, calendar: calendar)
         #expect(progress.xp == 550)
-        #expect(progress.level == 2) // sqrt(550/100) = sqrt(5.5) ~= 2.34 -> 2
+        #expect(progress.level == 2)
     }
-
-    // MARK: - dailyBuckets
 
     @Test func dailyBucketsGroupEntriesByCalendarDayOldestFirst() {
         let now = referenceNow
@@ -142,8 +133,6 @@ struct HistoryLogicTests {
         #expect(buckets.count == 3)
         #expect(buckets.allSatisfy { $0.sessions == 0 && $0.costUSD == 0 })
     }
-
-    // MARK: - perProjectTotals
 
     @Test func perProjectTotalsGroupByCwdBasenameSortedByCost() {
         let entries = [

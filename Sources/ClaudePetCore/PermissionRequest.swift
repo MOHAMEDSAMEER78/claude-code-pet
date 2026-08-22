@@ -1,9 +1,5 @@
 import Foundation
 
-/// A pending permission decision, written by pet-hook.py (in `await-permission`
-/// mode) when Claude Code's `PermissionRequest` hook fires. The hook process
-/// blocks polling for a matching response file; the app shows an Allow/Deny
-/// bubble and writes the response when the user clicks.
 public struct PermissionRequest: Codable, Identifiable {
     public var id: String { requestId }
     public var requestId: String

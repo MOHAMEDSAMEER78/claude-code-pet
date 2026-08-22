@@ -1,22 +1,9 @@
 import AppKit
 import Combine
 
-/// Drives the single aggregate pet's Codex-like idiosyncrasies that aren't
-/// tied to Claude Code's own state: a one-shot wave on wake, a one-shot jump
-/// on click, and autonomous idle wandering that walks the pet to a new spot
-/// along the screen's bottom edge and "sleeps" there - mirroring the
-/// documented real-Codex behavior of pets wandering and settling at screen
-/// edges when there's nothing to report.
-///
-/// Only wired to the single aggregate panel/mode. Multi-pet mode panels are
-/// a ClaudePet-specific extension (real Codex is single-pet), and wandering
-/// several independently would be visually chaotic, so it's skipped there.
 final class PetAnimator: ObservableObject {
     @Published var overrideRow: String?
 
-    /// Whether the pet is allowed to stroll on its own while idle. Backed by
-    /// AppSettings (the single settings model) rather than its own
-    /// UserDefaults key, so it shows up in Preferences too.
     var wanderEnabled: Bool {
         get { AppSettings.shared.wanderEnabled }
         set {
@@ -45,8 +32,6 @@ final class PetAnimator: ObservableObject {
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
         ) { [weak self] _ in
             guard let self, !self.isProgrammaticMove else { return }
-            // A real user drag: back off from wandering for a while so we
-            // don't fight their placement.
             self.cancelWander()
             self.suppressWanderUntil = Date().addingTimeInterval(120)
         }
@@ -69,20 +54,13 @@ final class PetAnimator: ObservableObject {
         }
     }
 
-    /// Every tick, either strolls to a new spot (existing wander) or - if
-    /// the current pet supports the extra rows - plays a brief stretch/
-    /// look-around in place, so idle isn't always the same walk-and-settle
-    /// loop. Options with no asset support (or, for the emoji fallback, no
-    /// matching visual branch) are simply left out of the pick.
     private func maybeStartIdleVariant() {
         guard wanderEnabled else { return }
         guard !isWandering, transientTimer == nil || !(transientTimer?.isValid ?? false) else { return }
         guard Date() > suppressWanderUntil else { return }
         guard store?.aggregate == .idle else { return }
-        guard Bool.random() && Bool.random() else { return } // ~75% skip each tick, keeps it lazy
+        guard Bool.random() && Bool.random() else { return }
 
-        // No custom asset -> emoji fallback, which has hand-drawn branches
-        // for both variants; a custom asset needs the matching sprite row.
         let hasStretch = library?.current == nil || (library?.current?.hasRow("stretching") ?? false)
         let hasLook = library?.current == nil || (library?.current?.hasRow("looking-around") ?? false)
 
@@ -108,7 +86,7 @@ final class PetAnimator: ObservableObject {
         let targetX = CGFloat.random(in: minX...maxX)
         let y = screen.visibleFrame.minY + margin
         let startX = panel.frame.origin.x
-        guard abs(targetX - startX) > 40 else { return } // not worth a trip
+        guard abs(targetX - startX) > 40 else { return }
 
         isWandering = true
         overrideRow = targetX > startX ? "running-right" : "running-left"
@@ -129,7 +107,7 @@ final class PetAnimator: ObservableObject {
                 timer.invalidate()
                 self.wanderStepTimer = nil
                 self.isWandering = false
-                self.overrideRow = nil // settle back to idle pose
+                self.overrideRow = nil
             }
         }
     }

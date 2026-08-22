@@ -4,12 +4,6 @@ import Darwin
 import os
 import ClaudePetCore
 
-/// Watches ~/.claude/pet/sessions/*.json (one file per Claude Code session,
-/// written by the pet-hook bridge script) and exposes both the per-session
-/// state (for multi-pet mode) and an aggregate across all sessions
-/// (for single-pet mode). File I/O and liveness-checking live here; the
-/// actual "what should this session show right now" decisions are pure
-/// functions in ClaudePetCore.SessionLogic so they're unit-testable.
 final class SessionStore: ObservableObject {
     @Published private(set) var sessions: [EffectiveSession] = []
     @Published private(set) var aggregate: PetState = .idle
@@ -19,10 +13,6 @@ final class SessionStore: ObservableObject {
     @Published private(set) var tasksTotal: Int?
     @Published private(set) var title: String?
     @Published private(set) var winningSessionId: String?
-    /// Set whenever `refresh()` skips a session file it couldn't decode -
-    /// visible (via Preferences/Stats) rather than silently vanishing that
-    /// session, so a hook/app version mismatch doesn't look like a bug with
-    /// no trace. Cleared once no file currently fails to decode.
     @Published private(set) var lastDecodeWarning: String?
 
     private let directory: URL
@@ -30,25 +20,13 @@ final class SessionStore: ObservableObject {
     private var pollTimer: Timer?
     private var decayTimer: Timer?
 
-    /// A "review" state older than this decays to idle in the UI.
     private static let reviewDecaySeconds: TimeInterval = 20
-    /// Fallback for sessions with no resolvable claude_pid to liveness-check
-    /// (e.g. daemon/forked sessions) - much shorter than before, since the
-    /// pid check below is what actually catches most dead sessions promptly.
     private static let staleSeconds: TimeInterval = 30 * 60
 
-    /// Fires whenever a session's state actually changes, carrying the old
-    /// and new EffectiveSession - used to trigger notifications/sounds/history
-    /// logging without those concerns living inside this store.
     let stateTransitions = PassthroughSubject<(old: EffectiveSession?, new: EffectiveSession), Never>()
-    /// Fires once, with the ended session's last-known snapshot, right
-    /// before its file is removed - the only hook point for session history.
     let sessionEnded = PassthroughSubject<EffectiveSession, Never>()
 
     private var lastStateBySession: [String: PetState] = [:]
-    /// Push path: pet-hook.py pings this the instant it writes/removes a
-    /// session file, so refresh() usually runs immediately rather than
-    /// waiting on FSEvent or the poll-timer fallback below.
     private let notifier = IPCNotifier(socketName: "notify-sessions.sock")
 
     init() {
@@ -75,14 +53,9 @@ final class SessionStore: ObservableObject {
 
         notifier.start { [weak self] in self?.refresh() }
 
-        // Last-resort fallback if both the socket ping and the FSEvent watch
-        // somehow miss a change (e.g. an old pet-hook.py version with
-        // neither). Relaxed from 5s now that the socket ping above is the
-        // primary push path - this only needs to catch the rare double-miss.
         pollTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             self?.refresh()
         }
-        // Drives the review->idle decay and stale-file cleanup even with no fs activity.
         decayTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.refresh()
         }
@@ -113,11 +86,6 @@ final class SessionStore: ObservableObject {
                 continue
             }
 
-            // A session whose process has actually exited (crash, force-quit
-            // terminal, killed mid-turn) never gets to run its own SessionEnd
-            // hook, so its last state - often "running" - would otherwise sit
-            // here for up to staleSeconds, outranking a real idle session in
-            // the aggregate. Confirm liveness directly whenever we have a pid.
             if let pid = status.claudePid, kill(pid_t(pid), 0) != 0, errno == ESRCH {
                 emitSessionEnded(for: status, now: now)
                 try? FileManager.default.removeItem(at: file)
@@ -174,10 +142,6 @@ final class SessionStore: ObservableObject {
         winningSessionId = winner.sessionId
     }
 
-    /// The session the aggregate pet's bubble is currently reflecting - used
-    /// by the bubble's quick-actions menu (bring to front / copy / open
-    /// transcript / end session), which needs the full session record, not
-    /// just the summarized aggregate fields above.
     var winningSession: EffectiveSession? {
         guard let winningSessionId else { return nil }
         return sessions.first { $0.sessionId == winningSessionId }
@@ -215,16 +179,11 @@ final class SessionStore: ObservableObject {
         lastStateBySession.removeValue(forKey: status.sessionId)
     }
 
-    /// Ends a Claude Code session from the tray, mirroring "close tab": sends
-    /// SIGTERM to the resolved CLI process (falls back to SIGKILL if it's
-    /// still alive after a beat), then removes the session file immediately
-    /// so the tray updates without waiting on SessionEnd - a forcibly-killed
-    /// process never gets to run its own SessionEnd hook.
     func killSession(_ session: EffectiveSession) {
         if let pid = session.claudePid {
             kill(pid_t(pid), SIGTERM)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                if kill(pid_t(pid), 0) == 0 { // still alive - process ignored SIGTERM
+                if kill(pid_t(pid), 0) == 0 {
                     kill(pid_t(pid), SIGKILL)
                 }
             }
@@ -237,8 +196,6 @@ final class SessionStore: ObservableObject {
         refresh()
     }
 
-    /// Convenience for callers (per-session pet panels) that only have a
-    /// session id on hand, not the full record.
     func killSession(sessionId: String) {
         guard let session = sessions.first(where: { $0.sessionId == sessionId }) else { return }
         killSession(session)

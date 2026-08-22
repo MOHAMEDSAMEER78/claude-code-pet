@@ -7,11 +7,6 @@ import ClaudePetCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
-    /// Started eagerly (`startingUpdater: true`) so background update checks
-    /// begin at launch; the app stays ad-hoc signed/non-notarized, so this
-    /// only smooths *subsequent* updates - Gatekeeper's first-run warning is
-    /// unaffected. Sparkle verifies downloaded update packages against its
-    /// own EdDSA keypair (SUPublicEDKey in Info.plist), not code signing.
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
     )
@@ -53,9 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory) // menu-bar-only, no Dock icon
+        NSApp.setActivationPolicy(.accessory)
 
-        _ = historyStore // start listening for session-end events immediately
+        _ = historyStore
         _ = progressStore
 
         var createdPanel: PetPanel?
@@ -70,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupStatusItem()
         applyMode()
-        if !multiSessionMode { animator.triggerWave() } // greet on wake, like the real thing
+        if !multiSessionMode { animator.triggerWave() }
 
         hotKeyManager = HotKeyManager { [weak self] in
             self?.toggleVisibility()
@@ -97,11 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Alerts (notifications, sound, menu-bar icon)
-
-    /// Wires SessionStore/PermissionRequestStore events to the reliability
-    /// features that don't depend on the pet panel being visible: a native
-    /// notification, an optional sound cue, and the menu-bar icon's state.
     private func wireAlerts() {
         store.stateTransitions
             .receive(on: DispatchQueue.main)
@@ -156,9 +146,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenuBarUsage()
     }
 
-    /// Checked every 10 minutes (not event-driven - both a running daily
-    /// budget and a weekly digest are about elapsed time, not any single
-    /// session event) while the app is running.
     private func checkBudgetAndDigest() {
         checkWeeklyDigest()
         checkBudgetAlert()
@@ -168,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard settings.weeklyDigestEnabled else { return }
         let now = Date()
         guard let last = settings.lastDigestSentAt else {
-            settings.lastDigestSentAt = now // baseline only - no digest for a week with no history yet
+            settings.lastDigestSentAt = now
             return
         }
         guard now.timeIntervalSince(last) >= 7 * 24 * 3600 else { return }
@@ -201,8 +188,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// "Is there already an on-screen surface showing this?" - a notification
-    /// only earns its interruption when nothing else already would.
     private var isPetVisible: Bool {
         if multiSessionMode { return multiPetController.isActive }
         return panel?.isVisible ?? false
@@ -215,13 +200,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.contentTintColor = tintColor(for: state)
     }
 
-    /// Shows a "⚡ N% 5h left  📅 N% 7d left" row inside the dropdown menu
-    /// when usage tracking (the opt-in statusLine wrapper) is enabled and
-    /// has data - the menu bar icon itself stays untouched. The row (and
-    /// its separator) stays hidden entirely otherwise, rather than showing
-    /// a stale/blank line. Percentages are bold and color-coded (green/
-    /// orange/red by how much is left), matching the same thresholds as
-    /// the quota tiles in Session Stats.
     private func refreshMenuBarUsage() {
         guard settings.showUsageInMenuBar, let usage = ClaudeUsageStore.load(),
               let fiveHourUsed = usage.fiveHourUsedPct
@@ -259,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .waitingPermission: return .systemOrange
         case .failed: return .systemRed
         case .review: return .systemGreen
-        case .running, .idle: return nil // default menu-bar template tint
+        case .running, .idle: return nil
         }
     }
 
@@ -282,8 +260,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Menu bar
-
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
@@ -291,9 +267,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        // Read-only summary row, shown only while usage tracking has data -
-        // hidden (not just blank) otherwise, so it doesn't clutter the menu
-        // for anyone who hasn't enabled that opt-in feature.
         let usageItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         usageItem.isEnabled = false
         usageItem.isHidden = true
@@ -364,20 +337,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             guard let panel else { return }
             if panel.isVisible {
-                hideTray() // the tray is anchored to the pet - don't leave it floating alone
+                hideTray()
                 panel.animateOut()
             } else {
                 panel.animateIn()
             }
         }
-        if wasVisible == false { animator.triggerWave() } // waking up: greet
+        if wasVisible == false { animator.triggerWave() }
         updateToggleTitle()
     }
 
-    /// "Select the pet to open the activity tray" - the real Codex UX for
-    /// switching between concurrent chats/sessions, per learn.chatgpt.com/docs/pets.
-    /// Only offered in single-pet mode; Multi-Session Pets already surfaces
-    /// every session as its own panel, so a tray on top would be redundant.
     private func toggleTray() {
         guard !multiSessionMode else { return }
         if let trayPanel, trayPanel.isVisible {
@@ -413,11 +382,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         guard let tray = trayPanel else { return }
         repositionTray(tray, relativeTo: panel)
-        // Attach as a child window so AppKit moves the tray in lockstep with
-        // the pet at the window-server level - same frame, no lag. A
-        // didMove-notification-based follow (the previous approach) only
-        // repositions reactively after each tick, which visibly stutters
-        // during a live drag.
         panel.addChildWindow(tray, ordered: .above)
         tray.animateIn { tray.makeKey() }
     }
@@ -432,8 +396,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trayPanel?.animateOut()
     }
 
-    /// Shared by the tray and command palette: same pool, same key policy
-    /// (per-session by default, per-project when Group Pets By Project is on).
     private func identityName(for sessionId: String) -> String {
         let pool = PetIdentity.namePool(customPetDirs: library.availableDirs)
         let cwd = store.sessions.first(where: { $0.sessionId == sessionId })?.cwd
@@ -445,8 +407,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         animator.wanderEnabled.toggle()
         wanderMenuItem?.state = animator.wanderEnabled ? .on : .off
     }
-
-    // MARK: - Command palette
 
     @objc private func toggleCommandPalette() {
         if let palettePanel, palettePanel.isVisible {
@@ -485,8 +445,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         palettePanel?.orderOut(nil)
     }
 
-    // MARK: - Secondary windows (Preferences / Stats / Gallery / Hook Setup)
-
     @objc private func showPreferences() {
         showUtilityWindow(&preferencesWindow, title: "Preferences") {
             PreferencesView(settings: self.settings)
@@ -522,17 +480,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Every secondary window (Preferences, Stats, Gallery, Hook Setup) is a
-    /// plain, regular, closable NSWindow hosting one SwiftUI view - not a
-    /// PetPanel, since these are deliberately normal windows the user
-    /// interacts with directly, not floating overlays.
     private func showUtilityWindow<Content: View>(
         _ slot: inout NSWindow?, title: String, @ViewBuilder content: () -> Content
     ) {
-        // Content is rebuilt every time even if the window is reused, so
-        // views like Stats (a point-in-time snapshot, not a live binding)
-        // show fresh data on every reopen instead of whatever was true when
-        // the window was first created.
         let window: NSWindow
         if let existing = slot {
             window = existing

@@ -3,13 +3,6 @@ import UserNotifications
 import AppKit
 import ClaudePetCore
 
-/// Posts a native macOS notification the moment a permission request needs a
-/// human decision - ClaudePet is notification-only for permissions (no
-/// in-app Allow/Deny), so this always fires regardless of whether the pet
-/// panel happens to be visible; it's the only signal there is. Also fires a
-/// lighter-weight notification for `failed` and `review` state transitions,
-/// which stays conditioned on the pet being hidden since those do have an
-/// on-screen alternative (the pet's own activity card).
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private let center = UNUserNotificationCenter.current()
     private var authorized = false
@@ -42,11 +35,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(content, id: "state-\(name)-\(state.rawValue)-\(Int(Date().timeIntervalSince1970))")
     }
 
-    /// Fires whenever a Claude Code session actually ends (its process
-    /// exits/is killed) - unconditionally, like permission requests, since
-    /// this is a rarer, more significant event than a single turn finishing
-    /// (`notifyStateChange`'s `.review` case) and worth knowing about even
-    /// while looking right at the pet.
     func notifySessionCompleted(name: String, finalState: PetState, cwd: String?, tasksCompleted: Int, tasksTotal: Int, durationSeconds: TimeInterval?) {
         guard AppSettings.shared.notificationsEnabled, AppSettings.shared.notifyOnSessionEnd, authorized else { return }
         let content = UNMutableNotificationContent()
@@ -86,9 +74,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(content, id: "weekly-digest-\(Int(Date().timeIntervalSince1970))")
     }
 
-    /// The same "last path component of cwd" convention used for per-
-    /// project grouping/naming elsewhere (PetIdentity, HistoryLogic) - kept
-    /// local here since this is the only spot NotificationManager needs it.
     private static func projectName(fromCwd cwd: String?) -> String? {
         guard let cwd, !cwd.isEmpty else { return nil }
         let name = URL(fileURLWithPath: cwd).lastPathComponent
@@ -100,7 +85,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         case .failed: return AppSettings.shared.notifyOnFailed
         case .review: return AppSettings.shared.notifyOnReview
         case .running: return AppSettings.shared.notifyOnRunning
-        case .waitingPermission, .idle: return false // permission has its own dedicated path above
+        case .waitingPermission, .idle: return false
         }
     }
 
@@ -117,8 +102,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
     }
 
-    // Show banners even while the app is running (foreground) - the default
-    // is to suppress them, which would defeat the point here.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,

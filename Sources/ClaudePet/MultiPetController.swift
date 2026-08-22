@@ -3,9 +3,6 @@ import Combine
 import SwiftUI
 import ClaudePetCore
 
-/// Manages one floating PetPanel per active Claude Code session, adding and
-/// removing panels as sessions come and go (SessionStore already handles
-/// SessionEnd/TTL cleanup by dropping entries from `sessions`).
 final class MultiPetController {
     private let store: SessionStore
     private let library: PetLibrary
@@ -35,9 +32,6 @@ final class MultiPetController {
         viewModels.removeAll()
     }
 
-    /// Re-slots every current panel against the (possibly now-different)
-    /// target screen - called when the monitor arrangement changes, since
-    /// `reconcile` otherwise only re-slots in response to a session change.
     func relayoutForScreenChange() {
         guard isActive else { return }
         reconcile(store.sessions)
@@ -46,14 +40,12 @@ final class MultiPetController {
     private func reconcile(_ sessions: [EffectiveSession]) {
         let currentIds = Set(sessions.map(\.sessionId))
 
-        // Remove panels for sessions that disappeared.
         for id in Array(panels.keys) where !currentIds.contains(id) {
             panels[id]?.orderOut(nil)
             panels.removeValue(forKey: id)
             viewModels.removeValue(forKey: id)
         }
 
-        // Update existing / create new, in a stable left-to-right order.
         for (index, session) in sessions.enumerated() {
             if let vm = viewModels[session.sessionId] {
                 vm.update(with: session)
@@ -80,10 +72,6 @@ final class MultiPetController {
             }
         }
 
-        // Re-slot every panel by current order so departures close the gap.
-        // Only the X position is fixed by slot index - Y is left alone since
-        // fitToContent may have grown/repositioned a panel vertically to fit
-        // a permission bubble or activity card.
         for (index, session) in sessions.enumerated() {
             guard let panel = panels[session.sessionId] else { continue }
             let slotX = PetPanel.slotOrigin(index: index).x

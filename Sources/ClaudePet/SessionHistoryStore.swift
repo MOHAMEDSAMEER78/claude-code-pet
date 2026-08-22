@@ -2,20 +2,12 @@ import Foundation
 import Combine
 import ClaudePetCore
 
-/// A local-only, append-only log of finished sessions. Previously a
-/// session's entire record vanished the moment it ended (its status file
-/// just gets deleted) - this is the smallest possible step toward "what did
-/// I actually do today," without inventing data (like elapsed time) the
-/// hook payloads don't actually give us a trustworthy way to compute.
 final class SessionHistoryStore: ObservableObject {
     typealias Entry = HistoryEntry
     typealias Stats = HistoryStats
 
     private let fileURL: URL
     private var cancellables: Set<AnyCancellable> = []
-    /// Transcript reads (potentially multi-MB) and the append-only file
-    /// write both happen here, off the main thread the sessionEnded signal
-    /// arrives on.
     private let ioQueue = DispatchQueue(label: "SessionHistoryStore.io", qos: .utility)
 
     init(sessionStore: SessionStore) {
@@ -39,9 +31,6 @@ final class SessionHistoryStore: ObservableObject {
         let durationSeconds = session.startedTs.map { endTs - $0 }
 
         ioQueue.async { [weak self] in
-            // Best-effort: the transcript is Claude Code's own file, untouched
-            // by anything ClaudePet deletes, but may still be missing/short if
-            // the model never replied. A miss just leaves cost/tokens nil.
             let usage = TranscriptUsage.totals(forSession: sessionId)
             let entry = Entry(
                 ts: endTs, sessionId: sessionId, title: title, cwd: cwd,
@@ -81,9 +70,6 @@ final class SessionHistoryStore: ObservableObject {
         HistoryLogic.perProjectTotals(from: readEntries())
     }
 
-    /// Sum of `costUSD` across every entry recorded today - used for the
-    /// budget-alert check, combined by the caller with live spend from any
-    /// still-active sessions.
     func todaysRecordedSpendUSD(now: Date = Date()) -> Double {
         let startOfToday = Calendar.current.startOfDay(for: now).timeIntervalSince1970
         return readEntries().filter { $0.ts >= startOfToday }.reduce(0) { $0 + ($1.costUSD ?? 0) }

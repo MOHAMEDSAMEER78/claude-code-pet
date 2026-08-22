@@ -3,8 +3,6 @@ import Testing
 @testable import ClaudePetCore
 
 struct PricingTests {
-    // MARK: - rates
-
     @Test func opusRatesMatchKnownTier() {
         #expect(PricingTable.rates(for: "claude-opus-4") == PricingTable.Rates(input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5))
     }
@@ -25,8 +23,6 @@ struct PricingTests {
         #expect(PricingTable.rates(for: nil) == PricingTable.rates(for: "sonnet"))
     }
 
-    // MARK: - isKnownModel
-
     @Test func knownModelNamesAreRecognized() {
         #expect(PricingTable.isKnownModel("claude-opus-4"))
         #expect(PricingTable.isKnownModel("claude-haiku-4.5"))
@@ -37,8 +33,6 @@ struct PricingTests {
         #expect(!PricingTable.isKnownModel("some-future-model"))
         #expect(!PricingTable.isKnownModel(nil))
     }
-
-    // MARK: - estimatedCostUSD
 
     @Test func costIsZeroForZeroTokens() {
         #expect(PricingTable.estimatedCostUSD(model: "sonnet", input: 0, output: 0, cacheCreate: 0, cacheRead: 0) == 0)

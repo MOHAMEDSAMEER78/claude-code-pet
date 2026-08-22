@@ -1,22 +1,5 @@
 import AppKit
 
-/// Brings the exact terminal tab/window running a Claude Code session to the
-/// front, not just "some window of the app." Plain NSRunningApplication
-/// .activate() only raises whichever window was last active in that app -
-/// wrong tab if you have several. We use the session's tty (captured by
-/// pet-hook.py by walking the process tree) to ask Terminal.app/iTerm2,
-/// which do expose a per-tab/session tty over AppleScript, to select the
-/// matching one. A session running inside tmux gets resolved as a tmux pane
-/// instead (its tty never matches a terminal tab's tty directly) and its
-/// tmux client switched before raising the terminal window the normal way.
-/// VS Code/Cursor don't expose per-tab tty at all, so we do the next best
-/// thing there: reuse/open the window for the matching workspace folder.
-/// Warp, Alacritty, and Ghostty expose no scripting dictionary at all (no
-/// per-tab tty, no workspace-reuse command) - for those, and for any other
-/// unrecognized terminal, the realistic ceiling is the final PID-activate
-/// fallback below (raises the app, not necessarily the right tab/window).
-/// A tmux pane hosted inside one of them still gets its tmux-side focus
-/// switched correctly via focusTmux, just without a window being raised.
 enum TerminalFocuser {
     static func focus(terminalApp: String?, terminalPid: Int32?, tty: String?, cwd: String?) {
         var focused = false
@@ -30,10 +13,6 @@ enum TerminalFocuser {
             default:
                 break
             }
-            // A session's own tty never directly matches a Terminal/iTerm2
-            // tab's tty when it's running inside tmux (tmux allocates its
-            // own pty per pane) - the direct match above always misses, so
-            // try resolving it as a tmux pane instead before giving up.
             if !focused {
                 focused = focusTmux(paneTty: tty, terminalApp: terminalApp)
             }
@@ -52,8 +31,6 @@ enum TerminalFocuser {
         }
     }
 
-    /// ps reports ttys as e.g. "/dev/ttys001" - guard against anything odd
-    /// before splicing it into an AppleScript string literal.
     private static func isPlausibleTTYPath(_ tty: String) -> Bool {
         tty.hasPrefix("/dev/") && tty.allSatisfy { $0.isLetter || $0.isNumber || $0 == "/" }
     }
@@ -99,12 +76,6 @@ enum TerminalFocuser {
         return runAppleScript(script) == "found"
     }
 
-    /// Best-effort tmux support: a Claude Code session's tty (captured by
-    /// pet-hook.py) may actually be a tmux pane's pty rather than a real
-    /// terminal tab, if the session is running inside a tmux pane. Resolves
-    /// that pane's session, switches the tmux *client* attached to it (not
-    /// just server-side state) to that window, then raises the outer
-    /// terminal window/tab hosting that client the normal way.
     private static func focusTmux(paneTty: String, terminalApp: String?) -> Bool {
         guard let tmux = resolveBinary("tmux") else { return false }
         guard let target = tmuxPaneTarget(forTty: paneTty, tmux: tmux) else { return false }
@@ -118,14 +89,10 @@ enum TerminalFocuser {
         case "iTerm2": return focusITerm2(tty: clientTty)
         case "Terminal": return focusTerminalApp(tty: clientTty)
         default:
-            // Unknown/unsupported outer terminal app - tmux's own focus did
-            // switch, which is real progress even without raising a window.
             return true
         }
     }
 
-    /// tmux reports "pane_tty session:window.pane" per line - find the one
-    /// whose pane_tty matches this session's tty and return its target spec.
     private static func tmuxPaneTarget(forTty tty: String, tmux: String) -> String? {
         guard let output = runTmux(tmux, ["list-panes", "-a", "-F", "#{pane_tty} #{session_name}:#{window_index}.#{pane_index}"])
         else { return nil }
@@ -137,9 +104,6 @@ enum TerminalFocuser {
         return nil
     }
 
-    /// The real terminal-emulator tty of whichever client has this tmux
-    /// session attached - that's what Terminal.app/iTerm2's own AppleScript
-    /// tty-matching needs, not the pane's tty inside tmux.
     private static func tmuxClientTty(forSession session: String, tmux: String) -> String? {
         runTmux(tmux, ["list-clients", "-t", session, "-F", "#{client_tty}"])?
             .split(separator: "\n").first.map(String.init)
@@ -164,16 +128,6 @@ enum TerminalFocuser {
         }
     }
 
-    /// `code -r <folder>` / `cursor -r <folder>` reuses (or opens) the window
-    /// for that workspace - not the exact integrated-terminal panel, but a
-    /// real improvement over "whichever VS Code window happened to be frontmost."
-    ///
-    /// ClaudePet.app is launched by LaunchServices (Finder/`open`), not a
-    /// shell, so it inherits launchd's minimal PATH
-    /// (/usr/bin:/bin:/usr/sbin:/sbin) - it never sees /usr/local/bin or
-    /// /opt/homebrew/bin, which is where these CLI shims actually live, so
-    /// `env <command>` silently fails to find them. Search the well-known
-    /// install locations directly instead of trusting PATH.
     private static func focusEditorWindow(command: String, cwd: String) -> Bool {
         guard let binary = resolveBinary(command) else { return false }
         let process = Process()
@@ -197,8 +151,6 @@ enum TerminalFocuser {
         if let found = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
             return found
         }
-        // Fall back to whatever the invoking shell's PATH resolves, in case
-        // it's installed somewhere nonstandard.
         let which = Process()
         which.executableURL = URL(fileURLWithPath: "/usr/bin/which")
         which.arguments = [command]

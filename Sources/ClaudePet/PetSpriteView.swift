@@ -2,10 +2,6 @@ import SwiftUI
 import AppKit
 import ClaudePetCore
 
-/// Cycles a custom pet's sprite-sheet frames for the current PetState, or an
-/// explicit override row (e.g. a one-shot "jumping"/"waving" gesture, or an
-/// autonomous "running-left"/"running-right" wander). Falls back to nothing
-/// (caller should show the emoji instead) if no asset is loaded.
 struct PetSpriteView: View {
     let asset: PetAsset
     let state: PetState
@@ -43,7 +39,7 @@ struct PetSpriteView: View {
 
     private func startTimer() {
         timer?.invalidate()
-        guard !reduceMotion else { return } // freeze on frame 0
+        guard !reduceMotion else { return }
         let interval = 1.0 / max(asset.fps, 1)
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             frameIndex += 1

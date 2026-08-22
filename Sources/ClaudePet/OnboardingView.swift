@@ -1,19 +1,11 @@
 import SwiftUI
 import ClaudePetCore
 
-/// First-run tour: what ClaudePet is and what its states mean, before
-/// handing off to HookSetupView for the actual plumbing step. Previously
-/// first run went straight to hook diagnostics with no explanation of the
-/// app itself - fine for the wiring, but it never actually introduced the
-/// pet, its states, or the hotkeys.
 struct OnboardingView: View {
     var onFinished: () -> Void
 
     @State private var page = 0
     private let pageCount = 3
-    /// Fixed content height so the page dots/Back/Next row sits in the same
-    /// place on every page instead of jumping up or down with each page's
-    /// content length.
     private let contentHeight: CGFloat = 230
 
     var body: some View {
@@ -97,9 +89,6 @@ struct OnboardingView: View {
         }
     }
 
-    /// The key/gesture badge gets a fixed-width slot so every row's
-    /// description starts at the same x, regardless of how long the badge
-    /// text itself is ("⌘⇧P" vs "Right-click bubble").
     private func hotkeyRow(_ key: String, _ description: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text(key)
