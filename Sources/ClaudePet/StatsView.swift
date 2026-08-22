@@ -20,6 +20,10 @@ struct StatsView: View {
     var progress: PetProgress? = nil
     var dailyBuckets: [DailyBucket] = []
     var projectTotals: [ProjectTotal] = []
+    /// Claude Code's own 5-hour/7-day rate-limit usage, if the optional
+    /// statusLine wrapper has been enabled (Hook Setup & Diagnostics) - nil
+    /// means it was never turned on, not that it's zero.
+    var usage: UsageSnapshot? = nil
 
     @State private var activeSpendUSD: Double?
 
@@ -49,6 +53,8 @@ struct StatsView: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             }
+
+            if let usage { claudeQuota(usage) }
 
             if !dailyBuckets.isEmpty { trendChart }
             if !projectTotals.isEmpty { projectBreakdown }
@@ -81,6 +87,43 @@ struct StatsView: View {
         }
         .font(.system(size: 11, weight: .semibold))
         .help("\(progress.totalSessions) sessions and \(progress.totalTasksCompleted) tasks completed all-time (\(progress.xp) xp)")
+    }
+
+    private func claudeQuota(_ usage: UsageSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Claude usage")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                quotaTile("5h quota", usedPct: usage.fiveHourUsedPct)
+                quotaTile("7d quota", usedPct: usage.sevenDayUsedPct)
+            }
+            if let updatedAt = usage.updatedAt {
+                let age = Date().timeIntervalSince1970 - updatedAt
+                Text(age < 3600
+                    ? "Updated \(max(1, Int(age / 60)))m ago"
+                    : "Updated over an hour ago - stale until your next Claude Code turn")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func quotaTile(_ label: String, usedPct: Double?) -> some View {
+        let used = usedPct ?? 0
+        let remaining = max(0, 100 - used)
+        let color: Color = used >= 80 ? .red : (used >= 50 ? .yellow : .green)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(usedPct == nil ? "—" : "\(Int(remaining))% left")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(usedPct == nil ? .secondary : color)
+            Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(usedPct == nil ? "\(label): no data" : "\(label): \(Int(remaining)) percent left")
     }
 
     private var trendChart: some View {

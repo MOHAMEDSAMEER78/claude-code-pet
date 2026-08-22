@@ -427,7 +427,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 decodeWarning: self.store.lastDecodeWarning,
                 progress: self.historyStore.loadProgress(),
                 dailyBuckets: self.historyStore.loadDailyBuckets(days: 14),
-                projectTotals: self.historyStore.loadProjectTotals()
+                projectTotals: self.historyStore.loadProjectTotals(),
+                usage: ClaudeUsageStore.load()
             )
         }
     }

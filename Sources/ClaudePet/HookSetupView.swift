@@ -11,7 +11,13 @@ struct HookSetupView: View {
     @State private var installError: String?
     @State private var justInstalled = false
 
+    @State private var statusLineChecks: [HookCheck] = HookInstaller.diagnoseStatusLine()
+    @State private var statusLineError: String?
+
     private var allOK: Bool { checks.allSatisfy { $0.status == .ok } }
+    private var statusLineEnabled: Bool {
+        FileManager.default.fileExists(atPath: HookInstaller.installedStatusLineURL.path)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -62,6 +68,45 @@ struct HookSetupView: View {
                     ])
                 }
             }
+
+            Divider()
+
+            Text("Claude Usage Tracking (optional)")
+                .font(.system(size: 13, weight: .bold))
+            Text("Shows the 5-hour/7-day rate-limit quota Claude Code itself tracks, in Session Stats. This works by claiming the statusLine setting - if you already have your own statusLine script, ClaudePet chains through to it, so your terminal's output doesn't change.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if statusLineEnabled {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(statusLineChecks) { check in
+                        HStack(alignment: .top, spacing: 8) {
+                            icon(for: check.status)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(check.title).font(.system(size: 11, weight: .medium))
+                                Text(check.detail).font(.system(size: 9)).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .padding(8)
+                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            if let statusLineError {
+                Text(statusLineError).font(.system(size: 11)).foregroundStyle(.red)
+            }
+
+            HStack {
+                if statusLineEnabled {
+                    Button("Disable Usage Tracking") { disableStatusLine() }
+                } else {
+                    Button("Enable Usage Tracking") { enableStatusLine() }
+                }
+                Spacer()
+                Button("Re-check") { statusLineChecks = HookInstaller.diagnoseStatusLine() }
+            }
         }
         .padding(18)
         .frame(width: 420)
@@ -86,5 +131,26 @@ struct HookSetupView: View {
             installError = error.localizedDescription
         }
         checks = HookInstaller.diagnose()
+    }
+
+    private func enableStatusLine() {
+        statusLineError = nil
+        do {
+            try HookInstaller.installStatusLineWrapper()
+        } catch {
+            statusLineError = error.localizedDescription
+        }
+        statusLineChecks = HookInstaller.diagnoseStatusLine()
+    }
+
+    private func disableStatusLine() {
+        statusLineError = nil
+        do {
+            try HookInstaller.uninstallStatusLineWrapper()
+            try? FileManager.default.removeItem(at: HookInstaller.installedStatusLineURL)
+        } catch {
+            statusLineError = error.localizedDescription
+        }
+        statusLineChecks = HookInstaller.diagnoseStatusLine()
     }
 }

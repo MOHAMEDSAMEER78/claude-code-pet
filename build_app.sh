@@ -21,6 +21,7 @@ cp -R ".build/$CONFIG/ClaudePet_ClaudePet.bundle" "$APP/Contents/Resources/Claud
 # inside the app itself, independent of wherever this checkout lives.
 cp "hooks/pet-hook.py" "$APP/Contents/Resources/pet-hook.py"
 cp "hooks/settings-snippet.json" "$APP/Contents/Resources/settings-snippet.json"
+cp "hooks/pet-statusline.py" "$APP/Contents/Resources/pet-statusline.py"
 
 # Sparkle is a dynamic framework (not statically linked) - it has to ship
 # inside the bundle at runtime. SPM's binary only carries an @loader_path

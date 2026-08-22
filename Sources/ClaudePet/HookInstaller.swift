@@ -22,6 +22,10 @@ struct HookCheck: Identifiable {
 enum HookInstaller {
     static let installedHookURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/pet/bin/pet-hook.py")
+    static let installedStatusLineURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".claude/pet/bin/pet-statusline.py")
+    private static let originalStatusLineConfigURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".claude/pet/original-statusline.json")
     private static let settingsURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/settings.json")
     /// The placeholder path baked into the bundled settings-snippet.json,
@@ -100,6 +104,89 @@ enum HookInstaller {
         }
     }
 
+    /// `statusLine` is a single-slot Claude Code setting - it's the only
+    /// place the 5-hour/7-day rate-limit usage percentages are exposed
+    /// (pet-hook.py's existing hooks never see them), but claiming it is a
+    /// bigger behavioral change than adding a hook matcher group, since it
+    /// controls what the user's terminal actually renders. So this is a
+    /// separate, explicitly opt-in step, not folded into `install()`.
+    ///
+    /// Whatever `statusLine` command was already configured (if any) is
+    /// saved to `original-statusline.json` so the installed wrapper can
+    /// chain through to it - the user's own status line output is meant to
+    /// be completely unaffected, just with ClaudePet also snapshotting the
+    /// usage fields it cares about on the side.
+    static func installStatusLineWrapper() throws {
+        guard let scriptData = Bundle.main.url(forResource: "pet-statusline", withExtension: "py")
+            .flatMap({ try? Data(contentsOf: $0) })
+        else { throw InstallError.bundleResourceMissing("pet-statusline.py") }
+
+        try FileManager.default.createDirectory(
+            at: installedStatusLineURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try scriptData.write(to: installedStatusLineURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: installedStatusLineURL.path)
+
+        var settings: [String: Any] = [:]
+        if FileManager.default.fileExists(atPath: settingsURL.path) {
+            guard let existingData = try? Data(contentsOf: settingsURL),
+                  let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any]
+            else { throw InstallError.settingsUnreadable }
+            settings = existing
+            let backupURL = settingsURL.appendingPathExtension("bak")
+            try? existingData.write(to: backupURL)
+        }
+
+        let currentStatusLine = settings["statusLine"] as? [String: Any]
+        let alreadyOurs = (currentStatusLine?["command"] as? String) == installedStatusLineURL.path
+        if !alreadyOurs {
+            // Only overwrite the saved "original" once - re-running this
+            // (e.g. a later Repair) must not accidentally save ClaudePet's
+            // own wrapper as the thing to chain to.
+            let originalData: Data
+            if let currentStatusLine {
+                originalData = try JSONSerialization.data(withJSONObject: currentStatusLine)
+            } else {
+                originalData = "null".data(using: .utf8)!
+            }
+            try? originalData.write(to: originalStatusLineConfigURL)
+        }
+
+        settings["statusLine"] = ["type": "command", "command": installedStatusLineURL.path]
+
+        do {
+            let output = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
+            try output.write(to: settingsURL)
+        } catch {
+            throw InstallError.settingsUnwritable(error)
+        }
+    }
+
+    /// Restores whatever `statusLine` command (if any) was registered
+    /// before `installStatusLineWrapper()` claimed the slot.
+    static func uninstallStatusLineWrapper() throws {
+        guard let existingData = try? Data(contentsOf: settingsURL),
+              var settings = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any]
+        else { throw InstallError.settingsUnreadable }
+
+        if let originalData = try? Data(contentsOf: originalStatusLineConfigURL),
+           let original = try? JSONSerialization.jsonObject(with: originalData) {
+            if original is NSNull {
+                settings.removeValue(forKey: "statusLine")
+            } else {
+                settings["statusLine"] = original
+            }
+        } else {
+            settings.removeValue(forKey: "statusLine")
+        }
+
+        do {
+            let output = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
+            try output.write(to: settingsURL)
+        } catch {
+            throw InstallError.settingsUnwritable(error)
+        }
+    }
+
     /// Read-only health check, safe to run any time (including before
     /// install) - surfaced from the menu bar as "Diagnose Hooks…" so a "the
     /// pet just isn't reacting" report becomes self-serve.
@@ -147,6 +234,56 @@ enum HookInstaller {
             checks.append(HookCheck(
                 title: "Session directory not writable", status: .missing,
                 detail: sessionsDir.path
+            ))
+        }
+
+        return checks
+    }
+
+    /// Same idea as `diagnose()`, but for the opt-in statusLine wrapper -
+    /// kept separate since, unlike the core hooks, this is an optional
+    /// feature most users won't have (or want) turned on.
+    static func diagnoseStatusLine() -> [HookCheck] {
+        var checks: [HookCheck] = []
+
+        let scriptInstalled = FileManager.default.fileExists(atPath: installedStatusLineURL.path)
+        let scriptExecutable = FileManager.default.isExecutableFile(atPath: installedStatusLineURL.path)
+        if scriptInstalled && scriptExecutable {
+            checks.append(HookCheck(title: "Usage-tracking script installed", status: .ok, detail: installedStatusLineURL.path))
+        } else {
+            checks.append(HookCheck(
+                title: "Usage tracking not enabled", status: .missing,
+                detail: "Enable it to see 5h/7-day quota in Session Stats"
+            ))
+            return checks
+        }
+
+        if let data = try? Data(contentsOf: settingsURL),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let statusLine = json["statusLine"] as? [String: Any],
+           (statusLine["command"] as? String) == installedStatusLineURL.path {
+            checks.append(HookCheck(title: "statusLine wired to ClaudePet", status: .ok, detail: "Chains through to your prior statusLine, if any"))
+        } else {
+            checks.append(HookCheck(
+                title: "statusLine not pointed at ClaudePet", status: .warning,
+                detail: "Something else has since taken over the statusLine setting"
+            ))
+        }
+
+        let usageFileURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/pet/usage.json")
+        if let data = try? Data(contentsOf: usageFileURL),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let updatedAt = json["updatedAt"] as? TimeInterval {
+            let age = Date().timeIntervalSince1970 - updatedAt
+            if age < 3600 {
+                checks.append(HookCheck(title: "Usage data is fresh", status: .ok, detail: "Last updated \(Int(age / 60))m ago"))
+            } else {
+                checks.append(HookCheck(title: "Usage data is stale", status: .warning, detail: "Last updated over an hour ago - start a Claude Code turn to refresh"))
+            }
+        } else {
+            checks.append(HookCheck(
+                title: "No usage data yet", status: .warning,
+                detail: "Send a prompt in any Claude Code session to populate it"
             ))
         }
 
